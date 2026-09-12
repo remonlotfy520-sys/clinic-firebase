@@ -419,6 +419,13 @@ function initApp(){
   loadPatientsList();
   flushWriteQueue();
 }
+
+/* ---------- تسجيل الـ Service Worker (يخلي الموقع نفسه يفتح من غير نت) ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{ /* تجاهل - الموقع لسه شغال عادي بس من غير الميزة دي */ });
+  });
+}
 </script>
 </body>
 </html>
