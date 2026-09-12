@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ملفات المرضى - العيادة (نسخة سريعة)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal:#2C6E63; --teal-dark:#1F4A40; --bg:#F7F4EC; --card:#FFFFFF;
+    --line:#E7E2D3; --ink:#1c2420; --muted:#7c7466; --red:#B23B3B;
+    --shadow:0 8px 24px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Tajawal',sans-serif; background:var(--bg); color:var(--ink);}
+  h2{font-family:'Cairo'; color:var(--teal-dark); margin:0 0 14px;}
+  .hint{color:var(--muted); font-size:12.5px; margin-top:4px;}
+  .btn{border:none; border-radius:10px; padding:10px 18px; font-family:'Tajawal'; font-weight:700; font-size:14px; cursor:pointer; transition:opacity .15s;}
+  .btn:disabled{opacity:.6; cursor:default;}
+  .btn-primary{background:var(--teal); color:#fff;}
+  .btn-primary:hover{opacity:.9;}
+  .btn-ghost{background:#fff; border:1px solid var(--line); color:var(--ink);}
+  .btn-outline-red{background:#fff; border:1px solid var(--red); color:var(--red);}
+  .card{background:var(--card); border-radius:16px; border:1px solid var(--line); box-shadow:var(--shadow); padding:26px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:13px; font-weight:700; color:var(--teal-dark); margin-bottom:6px;}
+  .field input, .field textarea{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
+    font-family:'Tajawal'; font-size:14.5px; background:#FCFBF8; outline:none; color:#1450C4;
+  }
+  .field input:focus, .field textarea:focus{border-color:var(--teal); background:#fff;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  @media (max-width:600px){.field-row{grid-template-columns:1fr;}}
+
+  header{display:flex; align-items:center; gap:10px; padding:14px 24px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap;}
+  .brand{display:flex; align-items:center; gap:10px; margin-left:auto;}
+  .mark{width:38px; height:38px; border-radius:10px; background:var(--teal); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Cairo'; font-weight:800; font-size:18px;}
+
+  main{max-width:900px; margin:0 auto; padding:24px 16px;}
+  .offline-badge{display:none; background:#FFF3CD; color:#8A6D00; padding:6px 12px; border-radius:20px; font-size:12.5px; font-weight:700;}
+
+  .search-wrap{display:flex; gap:10px; margin-bottom:20px;}
+  .search-wrap input{flex:1; padding:12px 16px; border-radius:12px; border:1px solid var(--line); font-family:'Tajawal'; font-size:15px;}
+
+  .patient-row{
+    display:flex; justify-content:space-between; align-items:center; padding:14px 16px;
+    background:#fff; border:1px solid var(--line); border-radius:12px; margin-bottom:10px; cursor:pointer;
+  }
+  .patient-row:hover{border-color:var(--teal);}
+  .patient-row .pname{font-weight:700;}
+  .patient-row .pmeta{color:var(--muted); font-size:12.5px;}
+  .empty-msg{color:var(--muted); text-align:center; padding:30px 0;}
+
+  #loginScreen{position:fixed; inset:0; background:var(--bg); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--teal-dark); color:#fff; padding:12px 22px; border-radius:10px; font-size:14px; z-index:900; opacity:0; transition:opacity .2s;}
+  .toast.show{opacity:1;}
+  .toast.error{background:var(--red);}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="card" style="max-width:360px; width:100%; text-align:center;">
+    <div class="mark" style="margin:0 auto 14px;">ع</div>
+    <h2 style="font-size:20px;">ملفات المرضى</h2>
+    <div class="hint" style="margin-bottom:22px;">النسخة السريعة - Firebase</div>
+    <div class="field" style="text-align:right;">
+      <label>الإيميل</label>
+      <input type="email" id="loginEmail" placeholder="doctor@clinic.local" autocomplete="username">
+    </div>
+    <div class="field" style="text-align:right;">
+      <label>كلمة المرور</label>
+      <input type="password" id="loginPassword" placeholder="كلمة المرور" autocomplete="current-password">
+    </div>
+    <div id="loginError" style="color:var(--red); font-size:13px; margin-bottom:10px; display:none;"></div>
+    <button class="btn btn-primary" id="loginBtn" style="width:100%;">دخول</button>
+  </div>
+</div>
+
+<header>
+  <span class="offline-badge" id="offlineBadge">📡 أوفلاين - بيانات محفوظة</span>
+  <button class="btn btn-primary" id="newPatientBtn">+ مريض جديد</button>
+  <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
+  <div class="brand">
+    <div class="mark">ع</div>
+    <div>
+      <div style="font-family:'Cairo'; font-weight:800; color:var(--teal-dark); font-size:16px;">ملفات المرضى</div>
+      <div class="hint">النسخة السريعة</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="listView">
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="ابحث بالاسم...">
+    </div>
+    <div id="patientsList"><div class="empty-msg">جاري التحميل...</div></div>
+  </div>
+
+  <div id="workspace" style="display:none;">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+        <h2 id="folderTitle" style="margin:0;">ملف جديد</h2>
+        <button class="btn btn-ghost" id="backToListBtn">← رجوع للقايمة</button>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>الاسم</label>
+          <input type="text" id="fName" placeholder="اسم المريض">
+        </div>
+        <div class="field">
+          <label>السن</label>
+          <input type="text" id="fAge" placeholder="مثال: 34">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>التليفون</label>
+          <input type="text" id="fPhone" placeholder="01xxxxxxxxx">
+        </div>
+        <div class="field">
+          <label>رقم العيادة</label>
+          <input type="text" id="fClinicNumber" placeholder="مثال: 120">
+        </div>
+      </div>
+      <div class="field">
+        <label>ملاحظات</label>
+        <textarea id="fNote" style="min-height:80px;" placeholder="أي ملاحظة عن المريض..."></textarea>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; margin:4px 0 18px; cursor:pointer; font-size:14px; font-weight:700; color:var(--red);">
+        <input type="checkbox" id="fRedFlag" style="width:18px;height:18px;">
+        🚩 المريض عنده مشكلة (Red Flag)
+      </label>
+
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-primary" id="savePatientBtn">حفظ بيانات المريض</button>
+        <button class="btn btn-outline-red" id="deletePatientBtn" style="display:none;">حذف المريض</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+  getDoc, getDocs, query, orderBy, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+/* ====== إعدادات Firebase بتاعتك ====== */
+const firebaseConfig = {
+  apiKey: "AIzaSyApOfA6TvzUbYLd5IXF-sAVXCzv3s-TUsw",
+  authDomain: "clinic-remonlotfy.firebaseapp.com",
+  projectId: "clinic-remonlotfy",
+  storageBucket: "clinic-remonlotfy.firebasestorage.app",
+  messagingSenderId: "187649934520",
+  appId: "1:187649934520:web:52a1a5648ec6b51466204d"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const patientsCol = collection(db, "patients");
+
+const $ = id => document.getElementById(id);
+let currentPatientId = null;
+let allPatients = [];
+
+/* ---------- Toast ---------- */
+function showToast(msg, isError){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(()=> t.classList.remove('show'), 2500);
+}
+
+/* ---------- تخزين محلي (Offline Cache) ---------- */
+function getCachedPatients(){
+  try{ return JSON.parse(localStorage.getItem('cachedPatientsList') || '[]'); }
+  catch(e){ return []; }
+}
+function setCachedPatients(list){
+  try{ localStorage.setItem('cachedPatientsList', JSON.stringify(list)); }catch(e){}
+}
+function showOfflineBadge(){ $('offlineBadge').style.display = 'inline-block'; }
+function hideOfflineBadge(){ $('offlineBadge').style.display = 'none'; }
+
+/* طابور الكتابة وقت الأوفلاين - أي حفظ فشل بسبب الاتصال بيتخزن هنا لحد ما النت يرجع */
+function getWriteQueue(){
+  try{ return JSON.parse(localStorage.getItem('writeQueue') || '[]'); }
+  catch(e){ return []; }
+}
+function addToWriteQueue(item){
+  const q = getWriteQueue();
+  q.push(item);
+  localStorage.setItem('writeQueue', JSON.stringify(q));
+}
+async function flushWriteQueue(){
+  const q = getWriteQueue();
+  if(!q.length) return;
+  const remaining = [];
+  for(const item of q){
+    try{
+      if(item.type === 'save'){
+        await savePatientToFirestore(item.data, item.id, true);
+      } else if(item.type === 'delete'){
+        await deleteDoc(doc(db, "patients", item.id));
+      }
+    }catch(err){ remaining.push(item); }
+  }
+  localStorage.setItem('writeQueue', JSON.stringify(remaining));
+  if(remaining.length === 0 && q.length > 0){
+    showToast('اتحفظت كل التعديلات اللي كانت متأخرة وانت أوفلاين ✓');
+    await loadPatientsList();
+  }
+}
+
+/* ---------- تسجيل الدخول ---------- */
+function showLoginScreen(){ $('loginScreen').style.display = 'flex'; }
+function hideLoginScreen(){ $('loginScreen').style.display = 'none'; }
+
+$('loginBtn').onclick = async ()=>{
+  const email = $('loginEmail').value.trim();
+  const password = $('loginPassword').value;
+  if(!email || !password){
+    $('loginError').textContent = 'اكتب الإيميل وكلمة المرور';
+    $('loginError').style.display = 'block';
+    return;
+  }
+  const btn = $('loginBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الدخول...';
+  try{
+    await signInWithEmailAndPassword(auth, email, password);
+    $('loginError').style.display = 'none';
+  }catch(err){
+    $('loginError').textContent = 'الإيميل أو كلمة المرور غلط';
+    $('loginError').style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
+};
+$('loginPassword').addEventListener('keydown', e=>{ if(e.key === 'Enter') $('loginBtn').click(); });
+
+$('logoutBtn').onclick = ()=>{
+  if(!confirm('تسجيل الخروج من الموقع؟')) return;
+  signOut(auth);
+};
+
+onAuthStateChanged(auth, (user)=>{
+  if(user){
+    hideLoginScreen();
+    initApp();
+  } else {
+    showLoginScreen();
+  }
+});
+
+/* ---------- تحميل قايمة المرضى ---------- */
+async function loadPatientsList(){
+  const cached = getCachedPatients();
+  if(cached.length){
+    allPatients = cached;
+    renderPatientsList(cached);
+    showOfflineBadge();
+    if(navigator.onLine === false) return;
+  }
+  try{
+    const snap = await getDocs(query(patientsCol, orderBy('CreatedAt', 'desc')));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    allPatients = list;
+    setCachedPatients(list);
+    renderPatientsList(list);
+    hideOfflineBadge();
+  }catch(err){
+    if(!cached.length){
+      $('patientsList').innerHTML = '<div class="empty-msg">تعذر تحميل المرضى ومفيش نسخة محفوظة</div>';
+    }
+  }
+}
+
+function renderPatientsList(list){
+  const box = $('patientsList');
+  if(!list.length){ box.innerHTML = '<div class="empty-msg">لسه مفيش مرضى مسجلين</div>'; return; }
+  box.innerHTML = list.map(p => `
+    <div class="patient-row" data-id="${p.id}">
+      <div>
+        <div class="pname">${escapeHtml(p.Name || '—')} ${p.RedFlag ? '🚩' : ''}</div>
+        <div class="pmeta">${escapeHtml(p.Phone || '')} ${p.ClinicNumber ? '· رقم ' + escapeHtml(p.ClinicNumber) : ''}</div>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('.patient-row').forEach(row=>{
+    row.addEventListener('click', ()=> openPatient(row.dataset.id));
+  });
+}
+
+$('searchInput').addEventListener('input', ()=>{
+  const q = normalizeArabic($('searchInput').value.trim());
+  if(!q){ renderPatientsList(allPatients); return; }
+  const filtered = allPatients.filter(p => normalizeArabic(p.Name || '').includes(q));
+  renderPatientsList(filtered);
+});
+
+function normalizeArabic(s){
+  return String(s || '').toLowerCase()
+    .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g,'و').replace(/ئ/g,'ي');
+}
+
+/* ---------- فتح/إنشاء/حفظ/حذف مريض ---------- */
+function openPatient(id){
+  const p = allPatients.find(x => x.id === id);
+  if(!p) return;
+  currentPatientId = id;
+  $('folderTitle').textContent = p.Name || 'ملف مريض';
+  $('fName').value = p.Name || '';
+  $('fAge').value = p.Age || '';
+  $('fPhone').value = p.Phone || '';
+  $('fClinicNumber').value = p.ClinicNumber || '';
+  $('fNote').value = p.Note || '';
+  $('fRedFlag').checked = !!p.RedFlag;
+  $('deletePatientBtn').style.display = 'inline-block';
+  $('listView').style.display = 'none';
+  $('workspace').style.display = 'block';
+}
+
+$('newPatientBtn').onclick = ()=>{
+  currentPatientId = null;
+  $('folderTitle').textContent = 'ملف جديد';
+  $('fName').value = ''; $('fAge').value = ''; $('fPhone').value = '';
+  $('fClinicNumber').value = ''; $('fNote').value = ''; $('fRedFlag').checked = false;
+  $('deletePatientBtn').style.display = 'none';
+  $('listView').style.display = 'none';
+  $('workspace').style.display = 'block';
+};
+
+$('backToListBtn').onclick = ()=>{
+  $('workspace').style.display = 'none';
+  $('listView').style.display = 'block';
+  loadPatientsList();
+};
+
+async function savePatientToFirestore(data, id, isFromQueue){
+  if(id){
+    await updateDoc(doc(db, "patients", id), { ...data, UpdatedAt: serverTimestamp() });
+  } else {
+    await addDoc(patientsCol, { ...data, CreatedAt: serverTimestamp(), UpdatedAt: serverTimestamp() });
+  }
+}
+
+$('savePatientBtn').onclick = async ()=>{
+  const name = $('fName').value.trim();
+  if(!name){ showToast('اكتب اسم المريض الأول', true); return; }
+
+  const data = {
+    Name: name,
+    Age: $('fAge').value.trim(),
+    Phone: $('fPhone').value.trim(),
+    ClinicNumber: $('fClinicNumber').value.trim(),
+    Note: $('fNote').value,
+    RedFlag: $('fRedFlag').checked
+  };
+
+  const btn = $('savePatientBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+  try{
+    await savePatientToFirestore(data, currentPatientId);
+    showToast('اتحفظ بنجاح ✓');
+    $('workspace').style.display = 'none';
+    $('listView').style.display = 'block';
+    await loadPatientsList();
+  }catch(err){
+    // فشل الحفظ - غالبًا بسبب انقطاع النت - نخزنه مؤقتًا ونكمل عادي
+    addToWriteQueue({ type:'save', data, id: currentPatientId });
+    showToast('النت مقطوع - الحفظ هيتم تلقائي أول ما النت يرجع', true);
+    $('workspace').style.display = 'none';
+    $('listView').style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
+};
+
+$('deletePatientBtn').onclick = async ()=>{
+  if(!currentPatientId) return;
+  if(!confirm('حذف هذا المريض نهائيًا؟')) return;
+  try{
+    await deleteDoc(doc(db, "patients", currentPatientId));
+    showToast('اتحذف المريض ✓');
+  }catch(err){
+    addToWriteQueue({ type:'delete', id: currentPatientId });
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+  $('workspace').style.display = 'none';
+  $('listView').style.display = 'block';
+  await loadPatientsList();
+};
+
+/* ---------- مراقبة الاتصال بالإنترنت ---------- */
+window.addEventListener('offline', ()=>{
+  showOfflineBadge();
+  showToast('الاتصال بالإنترنت انقطع - بتشتغل على نسخة محفوظة', true);
+});
+window.addEventListener('online', ()=>{
+  showToast('رجع الاتصال ✓ - بنحفظ أي تعديلات كانت متأخرة');
+  flushWriteQueue();
+});
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function initApp(){
+  loadPatientsList();
+  flushWriteQueue();
+}
+</script>
+</body>
+</html>
