@@ -77,6 +77,12 @@
   .visit-notes{font-size:13.5px; white-space:pre-wrap; margin-bottom:4px;}
   .visit-label{color:var(--teal-dark);}
   .no-visits{color:var(--muted); text-align:center; padding:20px 0; font-size:13.5px;}
+  .images-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:12px; margin-top:14px;}
+  .img-card{display:flex; flex-direction:column;}
+  .img-thumb{width:100%; height:110px; border-radius:10px; border:1px solid var(--line); background:#F2F0E9; overflow:hidden; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .img-thumb img{width:100%; height:100%; object-fit:cover;}
+  .img-date{font-size:11px; color:var(--muted); text-align:center; margin-top:5px;}
+  .img-delete-btn{width:100%; margin-top:4px; padding:5px; font-size:11px;}
 </style>
 </head>
 <body>
@@ -131,6 +137,7 @@
         <button class="tab-btn active" data-tab="tab-basic">البيانات الأساسية</button>
         <button class="tab-btn" data-tab="tab-kashf">الكشف والزيارات</button>
         <button class="tab-btn" data-tab="tab-operations">العمليات</button>
+        <button class="tab-btn" data-tab="tab-images">الصور</button>
       </div>
 
       <div class="tab-panel active" id="tab-basic">
@@ -283,6 +290,20 @@
           <div id="operationsList"></div>
         </div>
       </div>
+
+      <div class="tab-panel" id="tab-images">
+        <div class="exam-card">
+          <div class="visits-head">
+            <h2 style="margin:0;">صور المريض</h2>
+            <label class="btn btn-ghost" id="uploadImageLabel" style="cursor:pointer; margin:0;">
+              + رفع صورة
+              <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
+            </label>
+          </div>
+          <div class="hint">الصور بتتخزن في نفس نظام جوجل درايف القديم (منفصل عن باقي البيانات)</div>
+          <div id="imagesGrid" class="images-grid"></div>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -311,6 +332,89 @@ For:
 
 const OPERATION_LOCATIONS = ['غرفة عمليات 1', 'غرفة عمليات 2', 'مستشفى التعاون', 'العيادة'];
 const DRESSING_TYPES = ['غيار عادي', 'غيار معقم', 'إزالة غرز', 'غيار بمضاد حيوي موضعي'];
+
+/* ---------- جسر الصور مع نظام Apps Script القديم (جوجل درايف) ---------- */
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyvpULn8BdH-1BYVCdZm6vfSbMZvnyMRfWkxK1XpV7tIF8Xve6SA3UhbsyyDHpGcS83Og/exec';
+
+function getAppsScriptCreds(){
+  try{ return JSON.parse(localStorage.getItem('appsScriptCreds') || 'null'); }catch(e){ return null; }
+}
+function setAppsScriptCreds(username, password){
+  localStorage.setItem('appsScriptCreds', JSON.stringify({ username, password }));
+}
+function getAppsScriptToken(){ return localStorage.getItem('appsScriptToken') || ''; }
+function setAppsScriptToken(t){ localStorage.setItem('appsScriptToken', t); }
+
+async function ensureAppsScriptLogin(){
+  const existing = getAppsScriptToken();
+  if(existing){
+    try{
+      const r = await fetch(`${APPS_SCRIPT_URL}?action=validateToken&token=${encodeURIComponent(existing)}`);
+      const d = await r.json();
+      if(d && d.valid) return existing;
+    }catch(e){ /* هنحاول نعمل لوجين تاني تحت */ }
+  }
+  let creds = getAppsScriptCreds();
+  if(!creds){
+    const username = prompt('اسم المستخدم لنظام الصور القديم:');
+    const password = username ? prompt('كلمة المرور:') : null;
+    if(!username || !password) throw new Error('محتاجين بيانات دخول نظام الصور');
+    creds = { username, password };
+  }
+  const r = await fetch(`${APPS_SCRIPT_URL}?action=login&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`);
+  const d = await r.json();
+  if(!d || !d.success){
+    localStorage.removeItem('appsScriptCreds');
+    throw new Error('بيانات دخول نظام الصور غلط');
+  }
+  setAppsScriptCreds(creds.username, creds.password);
+  setAppsScriptToken(d.token);
+  return d.token;
+}
+
+async function uploadPatientImageRemote(patientId, base64, mimeType){
+  const token = await ensureAppsScriptLogin();
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action:'addPatientImage', token, PatientID: patientId, base64, mimeType, ImageDate: new Date().toISOString() })
+  });
+  return res.json();
+}
+async function fetchPatientImagesRemote(patientId){
+  const token = await ensureAppsScriptLogin();
+  const res = await fetch(`${APPS_SCRIPT_URL}?action=getPatientImages&token=${encodeURIComponent(token)}&patientId=${encodeURIComponent(patientId)}`);
+  return res.json();
+}
+async function deletePatientImageRemote(imageId){
+  const token = await ensureAppsScriptLogin();
+  const res = await fetch(`${APPS_SCRIPT_URL}?action=deletePatientImage&token=${encodeURIComponent(token)}&id=${encodeURIComponent(imageId)}`);
+  return res.json();
+}
+
+/* نصغّر الصورة لعرض أقصاه 1000 بكسل قبل الرفع - عشان توفر مساحة كبيرة */
+function resizeImageFile(file, maxDim){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let { width, height } = img;
+        if(width > maxDim || height > maxDim){
+          if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function fillSelectOptions(selectId, options){
   const el = $(selectId);
@@ -344,6 +448,7 @@ let currentVisits = [];
 let editingVisitId = null;
 let currentOperations = [];
 let editingOperationId = null;
+let currentImages = [];
 
 /* ---------- Toast ---------- */
 function showToast(msg, isError){
@@ -567,11 +672,16 @@ function openPatient(id){
     currentOperations = [];
     $('operationsList').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل تسجيل عمليات</div>';
     $('toggleOperationBtn').style.display = 'none';
+    currentImages = [];
+    $('imagesGrid').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل رفع صور</div>';
+    $('uploadImageLabel').style.display = 'none';
   } else {
     $('toggleVisitBtn').style.display = 'inline-block';
     loadVisits(id);
     $('toggleOperationBtn').style.display = 'inline-block';
     loadOperations(id);
+    $('uploadImageLabel').style.display = 'inline-flex';
+    loadImages(id);
   }
 }
 
@@ -599,6 +709,9 @@ $('newPatientBtn').onclick = ()=>{
   currentOperations = [];
   $('operationsList').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل تسجيل عمليات</div>';
   $('toggleOperationBtn').style.display = 'none';
+  currentImages = [];
+  $('imagesGrid').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل رفع صور</div>';
+  $('uploadImageLabel').style.display = 'none';
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
@@ -1111,6 +1224,86 @@ async function deleteOperationEntry(operationId){
     renderOperations(currentOperations);
     addToWriteQueue({ type:'deleteOperation', patientId: currentPatientId, operationId });
     showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+}
+
+/* ---------- صور المريض (عن طريق نظام Apps Script القديم) ---------- */
+async function loadImages(patientId){
+  $('imagesGrid').innerHTML = '<div class="no-visits">جاري تحميل الصور...</div>';
+  if(navigator.onLine === false){
+    $('imagesGrid').innerHTML = '<div class="no-visits">محتاج نت عشان يعرض الصور</div>';
+    return;
+  }
+  try{
+    const data = await fetchPatientImagesRemote(patientId);
+    if(data.error){ $('imagesGrid').innerHTML = `<div class="no-visits">${escapeHtml(data.error)}</div>`; return; }
+    currentImages = data.images || [];
+    renderImages(currentImages);
+  }catch(err){
+    $('imagesGrid').innerHTML = '<div class="no-visits">تعذر تحميل الصور - جرب تاني</div>';
+  }
+}
+
+function renderImages(images){
+  const box = $('imagesGrid');
+  if(!images.length){ box.innerHTML = '<div class="no-visits">لسه مفيش صور مرفوعة</div>'; return; }
+  box.innerHTML = images.map(im => `
+    <div class="img-card" data-id="${escapeHtml(String(im.ImageID))}">
+      <div class="img-thumb">${im.dataUrl ? `<img src="${im.dataUrl}">` : '<span style="font-size:11px;color:var(--muted);">تعذر التحميل</span>'}</div>
+      <div class="img-date">${escapeHtml(String(im.ImageDate || '').slice(0,10))}</div>
+      <button class="btn btn-outline-red img-delete-btn">حذف</button>
+    </div>`).join('');
+  box.querySelectorAll('.img-card').forEach(card=>{
+    const id = card.dataset.id;
+    const im = images.find(x => String(x.ImageID) === id);
+    if(!im) return;
+    card.querySelector('.img-thumb').addEventListener('click', ()=>{
+      if(!im.dataUrl) return;
+      const w = window.open('');
+      w.document.write(`<img src="${im.dataUrl}" style="max-width:100%;">`);
+    });
+    card.querySelector('.img-delete-btn').addEventListener('click', ()=> deleteImageEntry(im.ImageID));
+  });
+}
+
+$('imageFileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){
+    showToast('احفظ بيانات المريض الأول', true);
+    return;
+  }
+  if(navigator.onLine === false){
+    showToast('رفع الصور محتاج نت - جرب تاني وانت أونلاين', true);
+    return;
+  }
+  showToast('جاري رفع الصورة...');
+  try{
+    const dataUrl = await resizeImageFile(file, 1000);
+    const base64 = dataUrl.split(',')[1];
+    const result = await uploadPatientImageRemote(currentPatientId, base64, 'image/jpeg');
+    if(result.error){ showToast(result.error, true); return; }
+    showToast('اتحفظت الصورة ✓');
+    await loadImages(currentPatientId);
+  }catch(err){
+    showToast('حصل خطأ أثناء رفع الصورة', true);
+  }
+});
+
+async function deleteImageEntry(imageId){
+  if(!confirm('حذف هذه الصورة نهائيًا؟')) return;
+  if(navigator.onLine === false){
+    showToast('حذف الصور محتاج نت - جرب تاني وانت أونلاين', true);
+    return;
+  }
+  try{
+    const result = await deletePatientImageRemote(imageId);
+    if(result.error){ showToast(result.error, true); return; }
+    showToast('اتحذفت الصورة ✓');
+    await loadImages(currentPatientId);
+  }catch(err){
+    showToast('حصل خطأ أثناء الحذف', true);
   }
 }
 
