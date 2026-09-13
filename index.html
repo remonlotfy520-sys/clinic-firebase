@@ -176,6 +176,7 @@
     <span id="calendarBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--teal-dark); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
   </button>
   <button class="btn btn-ghost" id="viewStatsBtn">📊 إحصائيات</button>
+  <button class="btn btn-ghost" id="viewMessagesBtn">💬 رسائل</button>
   <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   <div class="brand">
     <div class="mark">ع</div>
@@ -263,6 +264,33 @@
     <div id="statsContent"></div>
   </div>
 
+  <div id="messagesView" style="display:none;">
+    <div class="visits-head" style="margin-bottom:14px;">
+      <h2 style="margin:0;">إرسال رسالة واتساب</h2>
+      <button class="btn btn-ghost" id="closeMessagesViewBtn">✕ إغلاق</button>
+    </div>
+
+    <div class="exam-card" style="margin-bottom:16px;">
+      <label>نص الرسالة</label>
+      <textarea id="msgText" style="min-height:120px;">أهلاً بيك، يسعدنا زيارتك لعيادتنا. لو محتاج أي استفسار احنا في خدمتك.</textarea>
+    </div>
+
+    <div class="exam-card" style="margin-bottom:16px;">
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-ghost" id="selectAllMsgBtn">تحديد الكل</button>
+        <button class="btn btn-ghost" id="clearAllMsgBtn">إلغاء التحديد</button>
+      </div>
+    </div>
+
+    <div id="msgPatientsList" style="background:#FCFBF8; border:1px solid var(--line); border-radius:10px; padding:8px; max-height:50vh; overflow-y:auto;"></div>
+
+    <div style="margin-top:16px;">
+      <button class="btn btn-primary" id="prepareMessagesBtn">تجهيز روابط الإرسال</button>
+    </div>
+
+    <div id="msgSendLinks" style="margin-top:16px;"></div>
+  </div>
+
   <div id="workspace" style="display:none;">
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
@@ -295,7 +323,10 @@
         <div class="field-row">
           <div class="field">
             <label>التليفون</label>
-            <input type="text" id="fPhone" placeholder="01xxxxxxxxx">
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="fPhone" placeholder="01xxxxxxxxx" style="flex:1;">
+              <button type="button" class="btn btn-ghost" id="sendWhatsappBtn" title="ابعت رسالة واتساب لهذا المريض" style="padding:10px 14px;">💬</button>
+            </div>
           </div>
           <div class="field">
             <label>رقم العيادة</label>
@@ -1433,6 +1464,7 @@ $('newPatientBtn').onclick = ()=>{
   $('listView').style.display = 'none';
   $('calendarView').style.display = 'none';
   $('statsView').style.display = 'none';
+  $('messagesView').style.display = 'none';
   $('workspace').style.display = 'block';
   resetToBasicTab();
 };
@@ -2907,6 +2939,7 @@ $('viewCalendarBtn').onclick = ()=>{
   $('listView').style.display = 'none';
   $('workspace').style.display = 'none';
   $('statsView').style.display = 'none';
+  $('messagesView').style.display = 'none';
   $('calendarView').style.display = 'block';
   loadAppointments();
 };
@@ -3162,11 +3195,94 @@ $('viewStatsBtn').onclick = ()=>{
   $('listView').style.display = 'none';
   $('workspace').style.display = 'none';
   $('calendarView').style.display = 'none';
+  $('messagesView').style.display = 'none';
   $('statsView').style.display = 'block';
   loadStats();
 };
 $('closeStatsViewBtn').onclick = ()=>{
   $('statsView').style.display = 'none';
+  $('listView').style.display = 'block';
+  loadPatientsList();
+};
+
+/* ---------- رسائل الواتساب ---------- */
+function normalizePhoneForWhatsapp(phone){
+  let p = String(phone || '').replace(/[^\d]/g, '');
+  if(!p) return '';
+  if(p.startsWith('0020')) p = p.slice(2);
+  if(p.startsWith('20') && p.length >= 12) return p;
+  if(p.startsWith('0') && p.length === 11) return '20' + p.slice(1);
+  if(p.length === 10 && !p.startsWith('0')) return '20' + p;
+  return p;
+}
+
+$('sendWhatsappBtn').onclick = ()=>{
+  const phone = $('fPhone').value.trim();
+  if(!phone){ showToast('اكتب رقم تليفون المريض الأول', true); return; }
+  window.open(`https://wa.me/${normalizePhoneForWhatsapp(phone)}`, '_blank');
+};
+
+let allPatientsForMsg = [];
+function renderMsgPatientsList(list){
+  const box = $('msgPatientsList');
+  if(!list.length){ box.innerHTML = '<div class="no-visits">لا يوجد مرضى برقم تليفون</div>'; return; }
+  box.innerHTML = list.map(p => `
+    <label style="display:flex; align-items:center; gap:10px; padding:11px 8px; border-bottom:1px solid var(--line); cursor:pointer;">
+      <input type="checkbox" class="msg-patient-check" data-id="${escapeHtml(p.id)}" data-phone="${escapeHtml(String(p.Phone))}" data-name="${escapeHtml(p.Name || '')}" style="width:18px;height:18px;">
+      <span style="flex:1; font-weight:600;">${escapeHtml(p.Name || '—')}</span>
+      <span style="color:var(--muted); font-size:13px;">${escapeHtml(String(p.Phone))}</span>
+    </label>`).join('');
+}
+
+async function loadMessagesPatients(){
+  const box = $('msgPatientsList');
+  box.innerHTML = '<div class="no-visits">جاري التحميل...</div>';
+  if(navigator.onLine === false){
+    allPatientsForMsg = getCachedPatients().filter(p => p.Phone);
+    renderMsgPatientsList(allPatientsForMsg);
+    return;
+  }
+  try{
+    const snap = await getDocs(patientsCol);
+    const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    allPatientsForMsg = list.filter(p => p.Phone);
+    renderMsgPatientsList(allPatientsForMsg);
+  }catch(err){ box.innerHTML = '<div class="no-visits">تعذر تحميل المرضى</div>'; }
+}
+
+$('selectAllMsgBtn').onclick = ()=>{ document.querySelectorAll('.msg-patient-check').forEach(cb => cb.checked = true); };
+$('clearAllMsgBtn').onclick = ()=>{ document.querySelectorAll('.msg-patient-check').forEach(cb => cb.checked = false); };
+
+$('prepareMessagesBtn').onclick = ()=>{
+  const text = $('msgText').value.trim();
+  if(!text){ showToast('اكتب نص الرسالة الأول', true); return; }
+  const checked = Array.from(document.querySelectorAll('.msg-patient-check:checked'));
+  if(!checked.length){ showToast('اختار مريض واحد على الأقل', true); return; }
+  const encoded = encodeURIComponent(text);
+  const box = $('msgSendLinks');
+  box.innerHTML = `<div class="visits-head" style="margin-bottom:10px;"><h2 style="margin:0;">روابط الإرسال (${checked.length})</h2></div>` +
+    checked.map(cb=>{
+      const phone = normalizePhoneForWhatsapp(cb.dataset.phone);
+      const url = `https://wa.me/${phone}?text=${encoded}`;
+      return `<a href="${url}" target="_blank" class="btn btn-primary" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; text-decoration:none;">
+        <span>واتساب ${escapeHtml(cb.dataset.name)}</span>
+        <span>↗</span>
+      </a>`;
+    }).join('');
+  showToast('الروابط جاهزة تحت - دوس على كل واحد يفتحلك واتساب بالرسالة جاهزة');
+};
+
+$('viewMessagesBtn').onclick = async ()=>{
+  $('listView').style.display = 'none';
+  $('workspace').style.display = 'none';
+  $('calendarView').style.display = 'none';
+  $('statsView').style.display = 'none';
+  $('messagesView').style.display = 'block';
+  $('msgSendLinks').innerHTML = '';
+  await loadMessagesPatients();
+};
+$('closeMessagesViewBtn').onclick = ()=>{
+  $('messagesView').style.display = 'none';
   $('listView').style.display = 'block';
   loadPatientsList();
 };
