@@ -183,6 +183,7 @@
   <button class="btn btn-ghost" id="viewStatsBtn">📊 إحصائيات</button>
   <button class="btn btn-ghost" id="viewMessagesBtn">💬 رسائل</button>
   <button class="btn btn-ghost" id="importOldPatientsBtn">📥 استيراد من القديم</button>
+  <button class="btn btn-ghost" id="runBackupBtn">💾 نسخة احتياطية</button>
   <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   <div class="brand">
     <div class="mark">ع</div>
@@ -3433,6 +3434,23 @@ $('importOldPatientsBtn').onclick = async ()=>{
     await loadPatientsList();
   }catch(err){
     showToast('حصل خطأ أثناء الاستيراد', true);
+  }
+  btn.disabled = false; btn.textContent = orig;
+};
+
+$('runBackupBtn').onclick = async ()=>{
+  if(navigator.onLine === false){ showToast('النسخة الاحتياطية محتاجة نت', true); return; }
+  if(!confirm('هيتعمل نسخة احتياطية كاملة من كل البيانات دلوقتي وتتحفظ في جوجل درايف. ممكن ياخد شوية وقت لو المرضى كتير. تكمل؟')) return;
+  const btn = $('runBackupBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري النسخ...';
+  try{
+    const token = await ensureAppsScriptLogin();
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=runBackupNow&token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if(data.error){ showToast(data.error, true); }
+    else{ showToast('اتعملت النسخة الاحتياطية بنجاح ✓ - اتحفظت في مجلد "نسخ احتياطية - عيادة" على درايف'); }
+  }catch(err){
+    showToast('حصل خطأ أثناء عمل النسخة الاحتياطية', true);
   }
   btn.disabled = false; btn.textContent = orig;
 };
