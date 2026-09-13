@@ -531,6 +531,8 @@ import {
   getDoc, getDocs, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
+const $ = id => document.getElementById(id);
+
 const EXAM_TEMPLATE =
 `History (Present illness) and Exam:
 
@@ -909,7 +911,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const patientsCol = collection(db, "patients");
 
-const $ = id => document.getElementById(id);
 let currentPatientId = null;
 let allPatients = [];
 let currentVisits = [];
