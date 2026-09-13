@@ -25,11 +25,11 @@
   .card{background:var(--card); border-radius:16px; border:1px solid var(--line); box-shadow:var(--shadow); padding:26px;}
   .field{margin-bottom:14px;}
   .field label{display:block; font-size:13px; font-weight:700; color:var(--teal-dark); margin-bottom:6px;}
-  .field input, .field textarea{
+  .field input, .field textarea, .field select{
     width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
     font-family:'Tajawal'; font-size:14.5px; background:#FCFBF8; outline:none; color:#1450C4;
   }
-  .field input:focus, .field textarea:focus{border-color:var(--teal); background:#fff;}
+  .field input:focus, .field textarea:focus, .field select:focus{border-color:var(--teal); background:#fff;}
   .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   @media (max-width:600px){.field-row{grid-template-columns:1fr;}}
 
@@ -130,6 +130,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="tab-basic">البيانات الأساسية</button>
         <button class="tab-btn" data-tab="tab-kashf">الكشف والزيارات</button>
+        <button class="tab-btn" data-tab="tab-operations">العمليات</button>
       </div>
 
       <div class="tab-panel active" id="tab-basic">
@@ -228,6 +229,60 @@
           <div id="visitsList"></div>
         </div>
       </div>
+
+      <div class="tab-panel" id="tab-operations">
+        <div class="exam-card">
+          <div class="visits-head">
+            <h2 style="margin:0;">سجل العمليات</h2>
+            <button class="btn btn-ghost" id="toggleOperationBtn">+ تسجيل عملية جديدة</button>
+          </div>
+
+          <div class="new-visit-form" id="newOperationForm">
+            <div class="field" style="max-width:200px;">
+              <label>تاريخ العملية</label>
+              <input type="date" id="opDate">
+            </div>
+            <div class="field">
+              <label>اسم العملية</label>
+              <input type="text" id="opName" placeholder="اسم العملية...">
+            </div>
+            <div class="field">
+              <label>مكان العملية</label>
+              <select id="opLocation"></select>
+            </div>
+            <div class="field">
+              <label>التكلفة</label>
+              <input type="text" id="opCost" placeholder="التكلفة...">
+            </div>
+            <div class="field">
+              <label>الغيار الأول</label>
+              <select id="opDressing1"></select>
+            </div>
+            <div class="field">
+              <label>الغيار الثاني</label>
+              <select id="opDressing2"></select>
+            </div>
+            <div class="field">
+              <label>الغيار الثالث</label>
+              <select id="opDressing3"></select>
+            </div>
+            <div class="field">
+              <label>المتابعات</label>
+              <textarea id="opFollowUps" style="min-height:100px;" placeholder="المتابعات..."></textarea>
+            </div>
+            <div class="field">
+              <label>ملاحظات</label>
+              <textarea id="opNotes" style="min-height:100px;" placeholder="ملاحظات..."></textarea>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-primary" id="addOperationBtn">حفظ العملية</button>
+              <button class="btn btn-ghost" id="cancelOperationBtn">إلغاء</button>
+            </div>
+          </div>
+
+          <div id="operationsList"></div>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -254,6 +309,20 @@ Decision:
 For:
 `;
 
+const OPERATION_LOCATIONS = ['غرفة عمليات 1', 'غرفة عمليات 2', 'مستشفى التعاون', 'العيادة'];
+const DRESSING_TYPES = ['غيار عادي', 'غيار معقم', 'إزالة غرز', 'غيار بمضاد حيوي موضعي'];
+
+function fillSelectOptions(selectId, options){
+  const el = $(selectId);
+  el.innerHTML = '<option value="">— اختار —</option>' + options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+}
+function populateOperationDropdowns(){
+  fillSelectOptions('opLocation', OPERATION_LOCATIONS);
+  fillSelectOptions('opDressing1', DRESSING_TYPES);
+  fillSelectOptions('opDressing2', DRESSING_TYPES);
+  fillSelectOptions('opDressing3', DRESSING_TYPES);
+}
+
 /* ====== إعدادات Firebase بتاعتك ====== */
 const firebaseConfig = {
   apiKey: "AIzaSyApOfA6TvzUbYLd5IXF-sAVXCzv3s-TUsw",
@@ -273,6 +342,8 @@ let currentPatientId = null;
 let allPatients = [];
 let currentVisits = [];
 let editingVisitId = null;
+let currentOperations = [];
+let editingOperationId = null;
 
 /* ---------- Toast ---------- */
 function showToast(msg, isError){
@@ -335,6 +406,15 @@ async function flushWriteQueue(){
       } else if(item.type === 'deleteVisit'){
         await deleteDoc(doc(db, "patients", item.patientId, "visits", item.visitId));
         touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'addOperation'){
+        await addDoc(collection(db, "patients", item.patientId, "operations"), { ...item.data, CreatedAt: serverTimestamp() });
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'updateOperation'){
+        await updateDoc(doc(db, "patients", item.patientId, "operations", item.operationId), item.data);
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'deleteOperation'){
+        await deleteDoc(doc(db, "patients", item.patientId, "operations", item.operationId));
+        touchedPatientIds.add(item.patientId);
       }
     }catch(err){ remaining.push(item); }
   }
@@ -344,6 +424,7 @@ async function flushWriteQueue(){
     await loadPatientsList();
     if(currentPatientId && touchedPatientIds.has(currentPatientId)){
       await loadVisits(currentPatientId);
+      await loadOperations(currentPatientId);
     }
   }
 }
@@ -355,6 +436,15 @@ function getCachedVisits(patientId){
 }
 function setCachedVisits(patientId, list){
   try{ localStorage.setItem('visits_' + patientId, JSON.stringify(list)); }catch(e){}
+}
+
+/* ---------- تخزين محلي لسجل العمليات ---------- */
+function getCachedOperations(patientId){
+  try{ return JSON.parse(localStorage.getItem('operations_' + patientId) || '[]'); }
+  catch(e){ return []; }
+}
+function setCachedOperations(patientId, list){
+  try{ localStorage.setItem('operations_' + patientId, JSON.stringify(list)); }catch(e){}
 }
 
 /* ---------- تسجيل الدخول ---------- */
@@ -474,9 +564,14 @@ function openPatient(id){
     currentVisits = [];
     $('visitsList').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل تسجيل زيارات</div>';
     $('toggleVisitBtn').style.display = 'none';
+    currentOperations = [];
+    $('operationsList').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل تسجيل عمليات</div>';
+    $('toggleOperationBtn').style.display = 'none';
   } else {
     $('toggleVisitBtn').style.display = 'inline-block';
     loadVisits(id);
+    $('toggleOperationBtn').style.display = 'inline-block';
+    loadOperations(id);
   }
 }
 
@@ -486,7 +581,9 @@ function resetToBasicTab(){
   document.querySelector('.tab-btn[data-tab="tab-basic"]').classList.add('active');
   $('tab-basic').classList.add('active');
   $('newVisitForm').classList.remove('open');
+  $('newOperationForm').classList.remove('open');
   editingVisitId = null;
+  editingOperationId = null;
 }
 
 $('newPatientBtn').onclick = ()=>{
@@ -499,6 +596,9 @@ $('newPatientBtn').onclick = ()=>{
   currentVisits = [];
   $('visitsList').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل تسجيل زيارات</div>';
   $('toggleVisitBtn').style.display = 'none';
+  currentOperations = [];
+  $('operationsList').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل تسجيل عمليات</div>';
+  $('toggleOperationBtn').style.display = 'none';
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
@@ -832,6 +932,188 @@ async function deleteVisitEntry(visitId){
   }
 }
 
+/* ---------- سجل العمليات ---------- */
+async function loadOperations(patientId){
+  const cached = getCachedOperations(patientId);
+  if(cached.length){ currentOperations = cached; renderOperations(cached); }
+  if(navigator.onLine === false){
+    if(!cached.length) $('operationsList').innerHTML = '<div class="no-visits">لسه مفيش عمليات محفوظة أوفلاين</div>';
+    return;
+  }
+  try{
+    const snap = await getDocs(query(collection(db, "patients", patientId, "operations"), orderBy('OperationDate', 'desc')));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    currentOperations = list;
+    setCachedOperations(patientId, list);
+    renderOperations(list);
+  }catch(err){
+    if(!cached.length) $('operationsList').innerHTML = '<div class="no-visits">تعذر تحميل العمليات</div>';
+  }
+}
+
+function renderOperations(operations){
+  const box = $('operationsList');
+  if(!operations.length){ box.innerHTML = '<div class="no-visits">لسه مفيش عمليات مسجلة</div>'; return; }
+  box.innerHTML = operations.map(o => `
+    <div class="visit-item" data-id="${o.id}">
+      <div class="visit-date">${escapeHtml(String(o.OperationDate || ''))} ${o._pending ? '⏳' : ''}</div>
+      <div class="visit-notes"><b>${escapeHtml(o.OperationName || '—')}</b></div>
+      ${o.Location ? `<div class="visit-notes"><b class="visit-label">مكان العملية:</b> ${escapeHtml(o.Location)}</div>` : ''}
+      ${o.Cost ? `<div class="visit-notes"><b class="visit-label">التكلفة:</b> ${escapeHtml(o.Cost)}</div>` : ''}
+      ${o.Dressing1 ? `<div class="visit-notes"><b class="visit-label">الغيار الأول:</b> ${escapeHtml(o.Dressing1)}</div>` : ''}
+      ${o.Dressing2 ? `<div class="visit-notes"><b class="visit-label">الغيار الثاني:</b> ${escapeHtml(o.Dressing2)}</div>` : ''}
+      ${o.Dressing3 ? `<div class="visit-notes"><b class="visit-label">الغيار الثالث:</b> ${escapeHtml(o.Dressing3)}</div>` : ''}
+      ${o.FollowUps ? `<div class="visit-notes"><b class="visit-label">المتابعات:</b> ${escapeHtml(o.FollowUps)}</div>` : ''}
+      ${o.Notes ? `<div class="visit-notes"><b class="visit-label">ملاحظات:</b> ${escapeHtml(o.Notes)}</div>` : ''}
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-ghost op-edit-btn" style="padding:6px 12px; font-size:12.5px;">تعديل</button>
+        <button class="btn btn-outline-red op-delete-btn" style="padding:6px 12px; font-size:12.5px;">حذف</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('.visit-item').forEach(item=>{
+    const id = item.dataset.id;
+    const op = currentOperations.find(o => o.id === id);
+    if(!op) return;
+    item.querySelector('.op-edit-btn').addEventListener('click', ()=> startEditOperation(op));
+    item.querySelector('.op-delete-btn').addEventListener('click', ()=> deleteOperationEntry(op.id));
+  });
+}
+
+function startEditOperation(o){
+  editingOperationId = o.id;
+  $('opDate').value = String(o.OperationDate || '').slice(0,10);
+  $('opName').value = o.OperationName || '';
+  $('opLocation').value = o.Location || '';
+  $('opCost').value = o.Cost || '';
+  $('opDressing1').value = o.Dressing1 || '';
+  $('opDressing2').value = o.Dressing2 || '';
+  $('opDressing3').value = o.Dressing3 || '';
+  $('opFollowUps').value = o.FollowUps || '';
+  $('opNotes').value = o.Notes || '';
+  $('addOperationBtn').textContent = 'حفظ التعديل';
+  $('newOperationForm').classList.add('open');
+  $('newOperationForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+$('toggleOperationBtn').onclick = ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){
+    showToast('احفظ بيانات المريض الأول', true);
+    return;
+  }
+  editingOperationId = null;
+  $('addOperationBtn').textContent = 'حفظ العملية';
+  $('opDate').value = new Date().toISOString().slice(0,10);
+  ['opName','opCost','opFollowUps','opNotes'].forEach(id => $(id).value = '');
+  ['opLocation','opDressing1','opDressing2','opDressing3'].forEach(id => $(id).value = '');
+  $('newOperationForm').classList.add('open');
+};
+$('cancelOperationBtn').onclick = ()=>{
+  editingOperationId = null;
+  $('addOperationBtn').textContent = 'حفظ العملية';
+  $('newOperationForm').classList.remove('open');
+};
+
+$('addOperationBtn').onclick = async ()=>{
+  const date = $('opDate').value;
+  if(!date){ showToast('اختار تاريخ العملية', true); return; }
+  const data = {
+    OperationDate: date,
+    OperationName: $('opName').value.trim(),
+    Location: $('opLocation').value,
+    Cost: $('opCost').value.trim(),
+    Dressing1: $('opDressing1').value,
+    Dressing2: $('opDressing2').value,
+    Dressing3: $('opDressing3').value,
+    FollowUps: $('opFollowUps').value.trim(),
+    Notes: $('opNotes').value.trim()
+  };
+  const isEditing = !!editingOperationId;
+  const btn = $('addOperationBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+
+  const finishUi = ()=>{
+    editingOperationId = null;
+    $('newOperationForm').classList.remove('open');
+    btn.disabled = false; btn.textContent = 'حفظ العملية';
+  };
+
+  if(navigator.onLine === false){
+    if(isEditing){
+      const idx = currentOperations.findIndex(o => o.id === editingOperationId);
+      if(idx !== -1) currentOperations[idx] = { ...currentOperations[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateOperation', patientId: currentPatientId, operationId: editingOperationId, data });
+    } else {
+      const tempId = 'tempo_' + Date.now();
+      currentOperations.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addOperation', patientId: currentPatientId, data, tempId });
+    }
+    setCachedOperations(currentPatientId, currentOperations);
+    renderOperations(currentOperations);
+    showToast('النت مقطوع - اتحفظت العملية مؤقتًا وهتتزامن تلقائي', true);
+    finishUi();
+    return;
+  }
+
+  try{
+    if(isEditing){
+      await updateDoc(doc(db, "patients", currentPatientId, "operations", editingOperationId), data);
+    } else {
+      await addDoc(collection(db, "patients", currentPatientId, "operations"), { ...data, CreatedAt: serverTimestamp() });
+    }
+    showToast(isEditing ? 'اتحدثت العملية ✓' : 'اتسجلت العملية ✓');
+    await loadOperations(currentPatientId);
+  }catch(err){
+    if(isEditing){
+      const idx = currentOperations.findIndex(o => o.id === editingOperationId);
+      if(idx !== -1) currentOperations[idx] = { ...currentOperations[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateOperation', patientId: currentPatientId, operationId: editingOperationId, data });
+    } else {
+      const tempId = 'tempo_' + Date.now();
+      currentOperations.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addOperation', patientId: currentPatientId, data, tempId });
+    }
+    setCachedOperations(currentPatientId, currentOperations);
+    renderOperations(currentOperations);
+    showToast('حصل خطأ في الاتصال - اتحفظت العملية مؤقتًا', true);
+  }
+  finishUi();
+};
+
+async function deleteOperationEntry(operationId){
+  if(!confirm('حذف هذه العملية نهائيًا؟')) return;
+  const isTemp = String(operationId).startsWith('tempo_');
+
+  if(isTemp){
+    currentOperations = currentOperations.filter(o => o.id !== operationId);
+    setCachedOperations(currentPatientId, currentOperations);
+    renderOperations(currentOperations);
+    const q = getWriteQueue().filter(item => item.tempId !== operationId);
+    localStorage.setItem('writeQueue', JSON.stringify(q));
+    return;
+  }
+
+  if(navigator.onLine === false){
+    currentOperations = currentOperations.filter(o => o.id !== operationId);
+    setCachedOperations(currentPatientId, currentOperations);
+    renderOperations(currentOperations);
+    addToWriteQueue({ type:'deleteOperation', patientId: currentPatientId, operationId });
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    return;
+  }
+  try{
+    await deleteDoc(doc(db, "patients", currentPatientId, "operations", operationId));
+    showToast('اتحذفت العملية ✓');
+    await loadOperations(currentPatientId);
+  }catch(err){
+    currentOperations = currentOperations.filter(o => o.id !== operationId);
+    setCachedOperations(currentPatientId, currentOperations);
+    renderOperations(currentOperations);
+    addToWriteQueue({ type:'deleteOperation', patientId: currentPatientId, operationId });
+    showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+}
+
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
 window.addEventListener('offline', ()=>{
   showOfflineBadge();
@@ -849,6 +1131,7 @@ function escapeHtml(str){
 function initApp(){
   loadPatientsList();
   flushWriteQueue();
+  populateOperationDropdowns();
 }
 
 /* ---------- تسجيل الـ Service Worker (يخلي الموقع نفسه يفتح من غير نت) ---------- */
