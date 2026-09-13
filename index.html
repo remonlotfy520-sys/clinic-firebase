@@ -36,8 +36,21 @@
   @media (max-width:600px){.field-row{grid-template-columns:1fr;}}
 
   header{display:flex; align-items:center; gap:10px; padding:14px 24px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap;}
-  .brand{display:flex; align-items:center; gap:10px; margin-left:auto;}
+  .brand{display:flex; align-items:center; gap:10px;}
   .mark{width:38px; height:38px; border-radius:10px; background:var(--teal); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Cairo'; font-weight:800; font-size:18px;}
+  .header-search{flex:1; min-width:180px; max-width:340px;}
+  .header-search input{width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--line); font-family:'Tajawal'; font-size:14px; background:#FCFBF8; outline:none;}
+  .header-search input:focus{border-color:var(--teal); background:#fff;}
+  .header-icons{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-right:auto;}
+  .header-icons .btn{padding:9px 12px; font-size:13px;}
+  .dashboard-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;}
+  .dashboard-card{background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow);}
+  .dashboard-card h3{margin:0 0 12px; font-family:'Cairo'; font-size:14.5px; color:var(--teal-dark); display:flex; align-items:center; gap:6px;}
+  .dashboard-card .dash-row{padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px; cursor:pointer;}
+  .dashboard-card .dash-row:last-child{border-bottom:none;}
+  .dashboard-card .dash-row:hover{color:var(--teal);}
+  .dashboard-card .dash-empty{color:var(--muted); font-size:13px; text-align:center; padding:10px 0;}
+  .dashboard-card .dash-count{font-family:'Cairo'; font-weight:800; font-size:32px; color:var(--red); text-align:center; padding:10px 0;}
 
   main{max-width:900px; margin:0 auto; padding:24px 16px;}
   .offline-badge{display:none; background:#FFF3CD; color:#8A6D00; padding:6px 12px; border-radius:20px; font-size:12.5px; font-weight:700;}
@@ -165,26 +178,6 @@
 </div>
 
 <header>
-  <span class="offline-badge" id="offlineBadge">📡 أوفلاين - بيانات محفوظة</span>
-  <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); cursor:pointer;" title="استخدم صورة الشعار المرفوعة على درايف بدل الورقة البيضاء في كل ملفات PDF">
-    <input type="checkbox" id="useLetterheadToggle" style="width:15px;height:15px;">
-    استخدام الشعار
-  </label>
-  <button class="btn btn-primary" id="newPatientBtn">+ مريض جديد</button>
-  <button class="btn btn-ghost" id="viewOperationPatientsBtn">🩺 عمليات</button>
-  <button class="btn btn-ghost" id="viewRedFlagsBtn" style="position:relative;">
-    🚩
-    <span id="redFlagBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--red); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
-  </button>
-  <button class="btn btn-ghost" id="viewCalendarBtn" style="position:relative;">
-    📅
-    <span id="calendarBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--teal-dark); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
-  </button>
-  <button class="btn btn-ghost" id="viewStatsBtn">📊 إحصائيات</button>
-  <button class="btn btn-ghost" id="viewMessagesBtn">💬 رسائل</button>
-  <button class="btn btn-ghost" id="importOldPatientsBtn">📥 استيراد من القديم</button>
-  <button class="btn btn-ghost" id="runBackupBtn">💾 نسخة احتياطية</button>
-  <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   <div class="brand">
     <div class="mark">ع</div>
     <div>
@@ -192,13 +185,36 @@
       <div class="hint">النسخة السريعة</div>
     </div>
   </div>
+  <div class="header-search">
+    <input type="text" id="searchInput" placeholder="ابحث بالاسم...">
+  </div>
+  <span class="offline-badge" id="offlineBadge">📡 أوفلاين - بيانات محفوظة</span>
+  <div class="header-icons">
+    <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); cursor:pointer;" title="استخدم صورة الشعار المرفوعة على درايف بدل الورقة البيضاء في كل ملفات PDF">
+      <input type="checkbox" id="useLetterheadToggle" style="width:15px;height:15px;">
+      الشعار
+    </label>
+    <button class="btn btn-ghost" id="viewOperationPatientsBtn">🩺 عمليات</button>
+    <button class="btn btn-ghost" id="viewStatsBtn">📊 إحصائيات</button>
+    <button class="btn btn-ghost" id="viewRedFlagsBtn" style="position:relative;">
+      🚩
+      <span id="redFlagBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--red); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
+    </button>
+    <button class="btn btn-ghost" id="viewCalendarBtn" style="position:relative;">
+      📅
+      <span id="calendarBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--teal-dark); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
+    </button>
+    <button class="btn btn-ghost" id="viewMessagesBtn">💬 رسائل</button>
+    <button class="btn btn-ghost" id="importOldPatientsBtn">📥 استيراد</button>
+    <button class="btn btn-ghost" id="runBackupBtn">💾 نسخة احتياطية</button>
+    <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
+  </div>
+  <button class="btn btn-primary" id="newPatientBtn">+ مريض جديد</button>
 </header>
 
 <main>
   <div id="listView">
-    <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="ابحث بالاسم...">
-    </div>
+    <div id="dashboardCards" class="dashboard-grid"></div>
     <div id="patientsList"><div class="empty-msg">جاري التحميل...</div></div>
   </div>
 
@@ -1346,6 +1362,7 @@ async function loadPatientsList(){
     allPatients = cached;
     renderPatientsList(cached);
     updateRedFlagBadge();
+    renderDashboard();
     showOfflineBadge();
     if(navigator.onLine === false) return;
   }
@@ -1357,6 +1374,7 @@ async function loadPatientsList(){
     setCachedPatients(list);
     renderPatientsList(list);
     updateRedFlagBadge();
+    renderDashboard();
     hideOfflineBadge();
   }catch(err){
     if(!cached.length){
@@ -1399,6 +1417,10 @@ function openPatient(id){
   currentPatientId = id;
   editingHistoryId = null;
   editingHistoryType = null;
+  if(!String(id).startsWith('temp_') && navigator.onLine !== false){
+    p.LastOpenedAt = new Date().toISOString();
+    updateDoc(doc(db, "patients", id), { LastOpenedAt: serverTimestamp() }).catch(()=>{});
+  }
   $('folderTitle').textContent = p.Name || 'ملف مريض';
   $('fName').value = p.Name || '';
   $('fAge').value = p.Age || '';
@@ -2705,7 +2727,7 @@ function setCachedAppointments(list){
 
 async function loadAppointments(){
   const cached = getCachedAppointments();
-  if(cached.length){ appointmentsData = cached; renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge(); }
+  if(cached.length){ appointmentsData = cached; renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge(); renderDashboard(); }
   if(navigator.onLine === false) return;
   try{
     const snap = await getDocs(query(collection(db, "appointments"), orderBy('AppointmentDate', 'asc')));
@@ -2716,6 +2738,7 @@ async function loadAppointments(){
     renderCalendarGrid();
     renderAppointmentsFullList();
     updateCalendarBadge();
+    renderDashboard();
   }catch(err){ /* هنستخدم النسخة المحفوظة لو موجودة */ }
 }
 
@@ -3338,6 +3361,44 @@ function renderQuickPatientsList(containerId, list){
       openPatient(row.dataset.id);
     });
   });
+}
+
+function getComparableDate(v){
+  if(!v) return 0;
+  if(v.toDate) return v.toDate().getTime();
+  const d = new Date(v);
+  return isNaN(d) ? 0 : d.getTime();
+}
+
+function renderDashboard(){
+  const box = $('dashboardCards');
+  const recent = allPatients.filter(p => p.LastOpenedAt)
+    .sort((a,b) => getComparableDate(b.LastOpenedAt) - getComparableDate(a.LastOpenedAt))
+    .slice(0, 5);
+  const todayStr = new Date().toISOString().slice(0,10);
+  const todayAppts = appointmentsData.filter(a => String(a.AppointmentDate || '').slice(0,10) === todayStr);
+  const redFlagCount = allPatients.filter(p => p.RedFlag).length;
+
+  box.innerHTML = `
+    <div class="dashboard-card">
+      <h3>🕒 آخر الحالات فتحتها</h3>
+      ${recent.length ? recent.map(p => `<div class="dash-row" data-id="${p.id}">${escapeHtml(p.Name || '—')}</div>`).join('') : '<div class="dash-empty">لسه معملتش فتح أي مريض</div>'}
+    </div>
+    <div class="dashboard-card">
+      <h3>📅 مواعيد النهاردة</h3>
+      ${todayAppts.length ? todayAppts.map(a => `<div class="dash-row">${escapeHtml(a.AppointmentTime || '')} ${escapeHtml(a.Subject || '')}</div>`).join('') : '<div class="dash-empty">مفيش مواعيد النهاردة</div>'}
+    </div>
+    <div class="dashboard-card" id="dashRedFlagCard" style="${redFlagCount > 0 ? 'cursor:pointer;' : ''}">
+      <h3>🚩 حالات Red Flag</h3>
+      ${redFlagCount > 0 ? `<div class="dash-count">${redFlagCount}</div>` : '<div class="dash-empty">مفيش حالات Red Flag حاليًا</div>'}
+    </div>
+  `;
+  box.querySelectorAll('.dash-row[data-id]').forEach(row=>{
+    row.addEventListener('click', ()=> openPatient(row.dataset.id));
+  });
+  if(redFlagCount > 0){
+    $('dashRedFlagCard').addEventListener('click', ()=> $('viewRedFlagsBtn').click());
+  }
 }
 
 function updateRedFlagBadge(){
