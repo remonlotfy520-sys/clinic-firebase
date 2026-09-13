@@ -3074,10 +3074,88 @@ async function loadStats(){
     else{ diagEntries.forEach(([diag,count]) => { html += `<div class="visit-notes">${escapeHtml(diag)}: <b>${count}</b></div>`; }); }
     html += `</div>`;
 
+    const groups = {};
+    patients.forEach(p=>{
+      const normalized = String(p.Name || '').trim().replace(/\s+/g, ' ');
+      if(!normalized) return;
+      if(!groups[normalized]) groups[normalized] = [];
+      groups[normalized].push(p);
+    });
+    const duplicates = Object.keys(groups).filter(name => groups[name].length > 1).map(name => ({ name, patients: groups[name] }));
+    duplicates.sort((a,b) => b.patients.length - a.patients.length);
+
+    html += `<div class="exam-card"><h2>أسماء متكررة</h2>`;
+    if(!duplicates.length){
+      html += `<div class="no-visits">مفيش أسماء متكررة حاليًا</div>`;
+    } else {
+      html += `<div class="hint" style="margin-bottom:10px;">دوس على أي مريض تحت عشان تفتح ملفه، أو دوس "دمج" عشان تخلي الأقدم هو الملف الأساسي والأحدث يبقى زيارة جواه (بيانات الفواتير والصور والهستوري على الملف المكرر بتتفقد)</div>`;
+      duplicates.forEach((dup, di)=>{
+        html += `<div class="visit-date" style="margin-top:${di>0?'16px':'0'}; display:flex; justify-content:space-between; align-items:center;">
+          <span>${escapeHtml(dup.name)} (${dup.patients.length})</span>
+          <button type="button" class="btn btn-outline-red dup-merge-btn" data-name="${escapeHtml(dup.name)}" style="padding:5px 12px; font-size:12px;">دمج</button>
+        </div>`;
+        dup.patients.forEach(p=>{
+          html += `<div class="dup-patient-row" data-id="${escapeHtml(p.id)}" style="cursor:pointer; padding:8px 4px; border-bottom:1px solid var(--line);">
+            <div style="font-weight:700;">${escapeHtml(p.Name || '')}</div>
+            <div class="hint">${escapeHtml(String(p.Phone || ''))} ${p.ClinicNumber ? '· رقم ' + escapeHtml(String(p.ClinicNumber)) : ''}</div>
+          </div>`;
+        });
+      });
+    }
+    html += `</div>`;
+
     box.innerHTML = html;
+    box.querySelectorAll('.dup-patient-row').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        $('statsView').style.display = 'none';
+        openPatient(row.dataset.id);
+      });
+    });
+    box.querySelectorAll('.dup-merge-btn').forEach(btn=>{
+      btn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const name = btn.dataset.name;
+        if(!confirm(`هيتم اعتماد أقدم ملف باسم "${name}" كملف أساسي، وأي ملف تاني بنفس الاسم هيتحول لزيارة جواه ويتمسح (فواتيره وصوره وهستوريه هتتفقد). متأكد؟`)) return;
+        await mergeDuplicatesByName(name);
+        loadStats();
+      });
+    });
+    return;
   }catch(err){
     box.innerHTML = '<div class="exam-card"><div class="no-visits">تعذر تحميل الإحصائيات</div></div>';
   }
+}
+
+async function mergeDuplicatesByName(name){
+  try{
+    const normalized = normalizeArabic(name);
+    const patSnap = await getDocs(patientsCol);
+    const group = [];
+    patSnap.forEach(d => { const p = { id: d.id, ...d.data() }; if(normalizeArabic(p.Name) === normalized) group.push(p); });
+    if(group.length < 2){ showToast('مفيش تكرار لهذا الاسم', true); return; }
+
+    group.sort((a,b)=>{
+      const da = a.CreatedAt && a.CreatedAt.toDate ? a.CreatedAt.toDate().getTime() : 0;
+      const db_ = b.CreatedAt && b.CreatedAt.toDate ? b.CreatedAt.toDate().getTime() : 0;
+      return da - db_;
+    });
+    const primary = group[0];
+    const duplicates = group.slice(1);
+
+    for(const dup of duplicates){
+      const visitDate = dup.CreatedAt && dup.CreatedAt.toDate ? dup.CreatedAt.toDate().toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+      await addDoc(collection(db, "patients", primary.id, "visits"), {
+        VisitDate: visitDate,
+        VisitNotes: dup.ExamNotes || '',
+        Radiology: dup.Radiology || '',
+        LabTests: dup.LabTests || '',
+        CreatedAt: serverTimestamp()
+      });
+      await deleteDoc(doc(db, "patients", dup.id));
+    }
+    showToast(`تم الدمج ✓ (${duplicates.length} ملف اتنقل كزيارة)`);
+    localStorage.removeItem('cachedPatientsList');
+  }catch(err){ showToast('حصل خطأ أثناء الدمج', true); }
 }
 
 $('viewStatsBtn').onclick = ()=>{
