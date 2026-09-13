@@ -56,6 +56,22 @@
   .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--teal-dark); color:#fff; padding:12px 22px; border-radius:10px; font-size:14px; z-index:900; opacity:0; transition:opacity .2s;}
   .toast.show{opacity:1;}
   .toast.error{background:var(--red);}
+
+  .tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; border-bottom:1px solid var(--line); padding-bottom:10px;}
+  .tab-btn{background:none; border:none; padding:8px 14px; border-radius:8px; font-family:'Tajawal'; font-weight:700; font-size:13.5px; color:var(--muted); cursor:pointer;}
+  .tab-btn.active{background:var(--teal); color:#fff;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .exam-card{margin-bottom:18px;}
+  .exam-card textarea{min-height:150px;}
+  .visits-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .new-visit-form{display:none; background:#FCFBF8; border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px;}
+  .new-visit-form.open{display:block;}
+  .visit-item{background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:10px;}
+  .visit-date{font-weight:700; color:var(--teal-dark); font-size:13px; margin-bottom:6px;}
+  .visit-notes{font-size:13.5px; white-space:pre-wrap; margin-bottom:4px;}
+  .visit-label{color:var(--teal-dark);}
+  .no-visits{color:var(--muted); text-align:center; padding:20px 0; font-size:13.5px;}
 </style>
 </head>
 <body>
@@ -106,38 +122,106 @@
         <button class="btn btn-ghost" id="backToListBtn">← رجوع للقايمة</button>
       </div>
 
-      <div class="field-row">
-        <div class="field">
-          <label>الاسم</label>
-          <input type="text" id="fName" placeholder="اسم المريض">
-        </div>
-        <div class="field">
-          <label>السن</label>
-          <input type="text" id="fAge" placeholder="مثال: 34">
-        </div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="tab-basic">البيانات الأساسية</button>
+        <button class="tab-btn" data-tab="tab-kashf">الكشف والزيارات</button>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>التليفون</label>
-          <input type="text" id="fPhone" placeholder="01xxxxxxxxx">
-        </div>
-        <div class="field">
-          <label>رقم العيادة</label>
-          <input type="text" id="fClinicNumber" placeholder="مثال: 120">
-        </div>
-      </div>
-      <div class="field">
-        <label>ملاحظات</label>
-        <textarea id="fNote" style="min-height:80px;" placeholder="أي ملاحظة عن المريض..."></textarea>
-      </div>
-      <label style="display:flex; align-items:center; gap:8px; margin:4px 0 18px; cursor:pointer; font-size:14px; font-weight:700; color:var(--red);">
-        <input type="checkbox" id="fRedFlag" style="width:18px;height:18px;">
-        🚩 المريض عنده مشكلة (Red Flag)
-      </label>
 
-      <div style="display:flex; gap:10px;">
-        <button class="btn btn-primary" id="savePatientBtn">حفظ بيانات المريض</button>
-        <button class="btn btn-outline-red" id="deletePatientBtn" style="display:none;">حذف المريض</button>
+      <div class="tab-panel active" id="tab-basic">
+        <div class="field-row">
+          <div class="field">
+            <label>الاسم</label>
+            <input type="text" id="fName" placeholder="اسم المريض">
+          </div>
+          <div class="field">
+            <label>السن</label>
+            <input type="text" id="fAge" placeholder="مثال: 34">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>التليفون</label>
+            <input type="text" id="fPhone" placeholder="01xxxxxxxxx">
+          </div>
+          <div class="field">
+            <label>رقم العيادة</label>
+            <input type="text" id="fClinicNumber" placeholder="مثال: 120">
+          </div>
+        </div>
+        <div class="field">
+          <label>ملاحظات</label>
+          <textarea id="fNote" style="min-height:80px;" placeholder="أي ملاحظة عن المريض..."></textarea>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; margin:4px 0 18px; cursor:pointer; font-size:14px; font-weight:700; color:var(--red);">
+          <input type="checkbox" id="fRedFlag" style="width:18px;height:18px;">
+          🚩 المريض عنده مشكلة (Red Flag)
+        </label>
+
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-primary" id="savePatientBtn">حفظ بيانات المريض</button>
+          <button class="btn btn-outline-red" id="deletePatientBtn" style="display:none;">حذف المريض</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-kashf">
+        <div class="exam-card">
+          <h2>الشكوى والكشف</h2>
+          <div class="hint">القالب بيتحط تلقائي - كمّل في الفراغات وعدّل زي ما يريحك</div>
+          <textarea id="fExam" dir="ltr" style="text-align:left;" placeholder="الشكوى، الفحص، التشخيص، العلاج..."></textarea>
+        </div>
+
+        <div class="exam-card">
+          <h2>الأشعة</h2>
+          <textarea id="fRadiology" style="min-height:110px;" placeholder="الأشعة المطلوبة أو نتائجها..."></textarea>
+          <div class="field" style="margin-top:14px;">
+            <label>رابط أرشيف الأشعة</label>
+            <input type="text" id="fRadiologyLink" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="exam-card">
+          <h2>التحاليل</h2>
+          <textarea id="fLabTests" style="min-height:110px;" placeholder="التحاليل المطلوبة أو نتائجها..."></textarea>
+          <label style="display:flex; align-items:center; gap:8px; margin:16px 0 4px; cursor:pointer; font-size:14px; font-weight:700; color:var(--ink);">
+            <input type="checkbox" id="fHasOperation" style="width:18px;height:18px;">
+            المريض له عملية / عمل عملية
+          </label>
+          <div style="margin-top:14px;">
+            <button class="btn btn-primary" id="saveExamBtn">حفظ الكشف والأشعة والتحاليل</button>
+          </div>
+        </div>
+
+        <div class="exam-card">
+          <div class="visits-head">
+            <h2 style="margin:0;">سجل الزيارات</h2>
+            <button class="btn btn-ghost" id="toggleVisitBtn">+ تسجيل زيارة جديدة</button>
+          </div>
+
+          <div class="new-visit-form" id="newVisitForm">
+            <div class="field" style="max-width:200px;">
+              <label>تاريخ الزيارة</label>
+              <input type="date" id="vDate">
+            </div>
+            <div class="field">
+              <label>الشكوى والكشف</label>
+              <textarea id="vNotes" dir="ltr" style="min-height:180px; text-align:left;" placeholder="الشكوى، الفحص، التشخيص، العلاج..."></textarea>
+            </div>
+            <div class="field">
+              <label>الأشعة</label>
+              <textarea id="vRadiology" style="min-height:80px;" placeholder="الأشعة المطلوبة أو نتائجها..."></textarea>
+            </div>
+            <div class="field">
+              <label>التحاليل</label>
+              <textarea id="vLabTests" style="min-height:80px;" placeholder="التحاليل المطلوبة أو نتائجها..."></textarea>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-primary" id="addVisitBtn">حفظ الزيارة</button>
+              <button class="btn btn-ghost" id="cancelVisitBtn">إلغاء</button>
+            </div>
+          </div>
+
+          <div id="visitsList"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -154,6 +238,16 @@ import {
   getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
   getDoc, getDocs, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+const EXAM_TEMPLATE =
+`History (Present illness) and Exam:
+
+Diagnosis:
+
+Decision:
+
+For:
+`;
 
 /* ====== إعدادات Firebase بتاعتك ====== */
 const firebaseConfig = {
@@ -172,6 +266,8 @@ const patientsCol = collection(db, "patients");
 const $ = id => document.getElementById(id);
 let currentPatientId = null;
 let allPatients = [];
+let currentVisits = [];
+let editingVisitId = null;
 
 /* ---------- Toast ---------- */
 function showToast(msg, isError){
@@ -180,6 +276,16 @@ function showToast(msg, isError){
   t.className = 'toast show' + (isError ? ' error' : '');
   setTimeout(()=> t.classList.remove('show'), 2500);
 }
+
+/* ---------- تبديل التابات ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=> b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=> p.classList.remove('active'));
+    btn.classList.add('active');
+    $(btn.dataset.tab).classList.add('active');
+  });
+});
 
 /* ---------- تخزين محلي (Offline Cache) ---------- */
 function getCachedPatients(){
@@ -206,12 +312,24 @@ async function flushWriteQueue(){
   const q = getWriteQueue();
   if(!q.length) return;
   const remaining = [];
+  const touchedPatientIds = new Set();
   for(const item of q){
     try{
       if(item.type === 'save'){
         await savePatientToFirestore(item.data, item.id, true);
       } else if(item.type === 'delete'){
         await deleteDoc(doc(db, "patients", item.id));
+      } else if(item.type === 'saveExam'){
+        await updateDoc(doc(db, "patients", item.id), { ...item.data, UpdatedAt: serverTimestamp() });
+      } else if(item.type === 'addVisit'){
+        await addDoc(collection(db, "patients", item.patientId, "visits"), { ...item.data, CreatedAt: serverTimestamp() });
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'updateVisit'){
+        await updateDoc(doc(db, "patients", item.patientId, "visits", item.visitId), item.data);
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'deleteVisit'){
+        await deleteDoc(doc(db, "patients", item.patientId, "visits", item.visitId));
+        touchedPatientIds.add(item.patientId);
       }
     }catch(err){ remaining.push(item); }
   }
@@ -219,7 +337,19 @@ async function flushWriteQueue(){
   if(remaining.length === 0 && q.length > 0){
     showToast('اتحفظت كل التعديلات اللي كانت متأخرة وانت أوفلاين ✓');
     await loadPatientsList();
+    if(currentPatientId && touchedPatientIds.has(currentPatientId)){
+      await loadVisits(currentPatientId);
+    }
   }
+}
+
+/* ---------- تخزين محلي لسجل الزيارات ---------- */
+function getCachedVisits(patientId){
+  try{ return JSON.parse(localStorage.getItem('visits_' + patientId) || '[]'); }
+  catch(e){ return []; }
+}
+function setCachedVisits(patientId, list){
+  try{ localStorage.setItem('visits_' + patientId, JSON.stringify(list)); }catch(e){}
 }
 
 /* ---------- تسجيل الدخول ---------- */
@@ -325,9 +455,33 @@ function openPatient(id){
   $('fClinicNumber').value = p.ClinicNumber || '';
   $('fNote').value = p.Note || '';
   $('fRedFlag').checked = !!p.RedFlag;
+  $('fExam').value = p.ExamNotes || EXAM_TEMPLATE;
+  $('fRadiology').value = p.Radiology || '';
+  $('fRadiologyLink').value = p.RadiologyLink || '';
+  $('fLabTests').value = p.LabTests || '';
+  $('fHasOperation').checked = !!p.HasOperation;
   $('deletePatientBtn').style.display = 'inline-block';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
+  resetToBasicTab();
+  const isTemp = String(id).startsWith('temp_');
+  if(isTemp){
+    currentVisits = [];
+    $('visitsList').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل تسجيل زيارات</div>';
+    $('toggleVisitBtn').style.display = 'none';
+  } else {
+    $('toggleVisitBtn').style.display = 'inline-block';
+    loadVisits(id);
+  }
+}
+
+function resetToBasicTab(){
+  document.querySelectorAll('.tab-btn').forEach(b=> b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=> p.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="tab-basic"]').classList.add('active');
+  $('tab-basic').classList.add('active');
+  $('newVisitForm').classList.remove('open');
+  editingVisitId = null;
 }
 
 $('newPatientBtn').onclick = ()=>{
@@ -335,9 +489,15 @@ $('newPatientBtn').onclick = ()=>{
   $('folderTitle').textContent = 'ملف جديد';
   $('fName').value = ''; $('fAge').value = ''; $('fPhone').value = '';
   $('fClinicNumber').value = ''; $('fNote').value = ''; $('fRedFlag').checked = false;
+  $('fExam').value = EXAM_TEMPLATE; $('fRadiology').value = ''; $('fRadiologyLink').value = '';
+  $('fLabTests').value = ''; $('fHasOperation').checked = false;
+  currentVisits = [];
+  $('visitsList').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل تسجيل زيارات</div>';
+  $('toggleVisitBtn').style.display = 'none';
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
+  resetToBasicTab();
 };
 
 $('backToListBtn').onclick = ()=>{
@@ -459,6 +619,213 @@ $('deletePatientBtn').onclick = async ()=>{
     renderPatientsList(allPatients);
   }
 };
+
+/* ---------- حفظ تاب الكشف والأشعة والتحاليل ---------- */
+$('saveExamBtn').onclick = async ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){
+    showToast('احفظ بيانات المريض الأول من تاب البيانات الأساسية', true);
+    return;
+  }
+  const data = {
+    ExamNotes: $('fExam').value,
+    Radiology: $('fRadiology').value.trim(),
+    RadiologyLink: $('fRadiologyLink').value.trim(),
+    LabTests: $('fLabTests').value.trim(),
+    HasOperation: $('fHasOperation').checked
+  };
+  const btn = $('saveExamBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+
+  const applyLocally = ()=>{
+    const idx = allPatients.findIndex(p => p.id === currentPatientId);
+    if(idx !== -1){ allPatients[idx] = { ...allPatients[idx], ...data }; setCachedPatients(allPatients); }
+  };
+
+  if(navigator.onLine === false){
+    applyLocally();
+    addToWriteQueue({ type:'saveExam', id: currentPatientId, data });
+    showToast('النت مقطوع - اتحفظ مؤقتًا وهيتزامن تلقائي', true);
+    btn.disabled = false; btn.textContent = orig;
+    return;
+  }
+  try{
+    await updateDoc(doc(db, "patients", currentPatientId), { ...data, UpdatedAt: serverTimestamp() });
+    applyLocally();
+    showToast('اتحفظ الكشف ✓');
+  }catch(err){
+    applyLocally();
+    addToWriteQueue({ type:'saveExam', id: currentPatientId, data });
+    showToast('حصل خطأ في الاتصال - اتحفظ مؤقتًا وهيتزامن تلقائي', true);
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
+};
+
+/* ---------- سجل الزيارات ---------- */
+async function loadVisits(patientId){
+  const cached = getCachedVisits(patientId);
+  if(cached.length){ currentVisits = cached; renderVisits(cached); }
+  if(navigator.onLine === false){
+    if(!cached.length) $('visitsList').innerHTML = '<div class="no-visits">لسه مفيش زيارات محفوظة أوفلاين</div>';
+    return;
+  }
+  try{
+    const snap = await getDocs(query(collection(db, "patients", patientId, "visits"), orderBy('VisitDate', 'desc')));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    currentVisits = list;
+    setCachedVisits(patientId, list);
+    renderVisits(list);
+  }catch(err){
+    if(!cached.length) $('visitsList').innerHTML = '<div class="no-visits">تعذر تحميل الزيارات</div>';
+  }
+}
+
+function renderVisits(visits){
+  const box = $('visitsList');
+  if(!visits.length){ box.innerHTML = '<div class="no-visits">لسه مفيش زيارات مسجلة</div>'; return; }
+  box.innerHTML = visits.map(v => `
+    <div class="visit-item" data-id="${v.id}">
+      <div class="visit-date">${escapeHtml(String(v.VisitDate || ''))} ${v._pending ? '⏳' : ''}</div>
+      <div class="visit-notes">${escapeHtml(v.VisitNotes || '—')}</div>
+      ${v.Radiology ? `<div class="visit-notes"><b class="visit-label">الأشعة:</b> ${escapeHtml(v.Radiology)}</div>` : ''}
+      ${v.LabTests ? `<div class="visit-notes"><b class="visit-label">التحاليل:</b> ${escapeHtml(v.LabTests)}</div>` : ''}
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-ghost visit-edit-btn" style="padding:6px 12px; font-size:12.5px;">تعديل</button>
+        <button class="btn btn-outline-red visit-delete-btn" style="padding:6px 12px; font-size:12.5px;">حذف</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('.visit-item').forEach(item=>{
+    const id = item.dataset.id;
+    const visit = currentVisits.find(v => v.id === id);
+    if(!visit) return;
+    item.querySelector('.visit-edit-btn').addEventListener('click', ()=> startEditVisit(visit));
+    item.querySelector('.visit-delete-btn').addEventListener('click', ()=> deleteVisitEntry(visit.id));
+  });
+}
+
+function startEditVisit(visit){
+  editingVisitId = visit.id;
+  $('vDate').value = String(visit.VisitDate || '').slice(0,10);
+  $('vNotes').value = visit.VisitNotes || '';
+  $('vRadiology').value = visit.Radiology || '';
+  $('vLabTests').value = visit.LabTests || '';
+  $('addVisitBtn').textContent = 'حفظ التعديل';
+  $('newVisitForm').classList.add('open');
+  $('newVisitForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+$('toggleVisitBtn').onclick = ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){
+    showToast('احفظ بيانات المريض الأول', true);
+    return;
+  }
+  editingVisitId = null;
+  $('addVisitBtn').textContent = 'حفظ الزيارة';
+  $('vDate').value = new Date().toISOString().slice(0,10);
+  $('vNotes').value = EXAM_TEMPLATE;
+  $('vRadiology').value = '';
+  $('vLabTests').value = '';
+  $('newVisitForm').classList.add('open');
+};
+$('cancelVisitBtn').onclick = ()=>{
+  editingVisitId = null;
+  $('addVisitBtn').textContent = 'حفظ الزيارة';
+  $('newVisitForm').classList.remove('open');
+};
+
+$('addVisitBtn').onclick = async ()=>{
+  const date = $('vDate').value;
+  const notes = $('vNotes').value.trim();
+  const radiology = $('vRadiology').value.trim();
+  const labTests = $('vLabTests').value.trim();
+  if(!date){ showToast('اختار تاريخ الزيارة', true); return; }
+  const data = { VisitDate: date, VisitNotes: notes, Radiology: radiology, LabTests: labTests };
+  const isEditing = !!editingVisitId;
+  const btn = $('addVisitBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+
+  const finishUi = ()=>{
+    editingVisitId = null;
+    $('newVisitForm').classList.remove('open');
+    btn.disabled = false; btn.textContent = 'حفظ الزيارة';
+  };
+
+  if(navigator.onLine === false){
+    if(isEditing){
+      const idx = currentVisits.findIndex(v => v.id === editingVisitId);
+      if(idx !== -1) currentVisits[idx] = { ...currentVisits[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateVisit', patientId: currentPatientId, visitId: editingVisitId, data });
+    } else {
+      const tempId = 'tempv_' + Date.now();
+      currentVisits.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addVisit', patientId: currentPatientId, data, tempId });
+    }
+    setCachedVisits(currentPatientId, currentVisits);
+    renderVisits(currentVisits);
+    showToast('النت مقطوع - اتحفظت الزيارة مؤقتًا وهتتزامن تلقائي', true);
+    finishUi();
+    return;
+  }
+
+  try{
+    if(isEditing){
+      await updateDoc(doc(db, "patients", currentPatientId, "visits", editingVisitId), data);
+    } else {
+      await addDoc(collection(db, "patients", currentPatientId, "visits"), { ...data, CreatedAt: serverTimestamp() });
+    }
+    showToast(isEditing ? 'اتحدثت الزيارة ✓' : 'اتسجلت الزيارة ✓');
+    await loadVisits(currentPatientId);
+  }catch(err){
+    if(isEditing){
+      const idx = currentVisits.findIndex(v => v.id === editingVisitId);
+      if(idx !== -1) currentVisits[idx] = { ...currentVisits[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateVisit', patientId: currentPatientId, visitId: editingVisitId, data });
+    } else {
+      const tempId = 'tempv_' + Date.now();
+      currentVisits.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addVisit', patientId: currentPatientId, data, tempId });
+    }
+    setCachedVisits(currentPatientId, currentVisits);
+    renderVisits(currentVisits);
+    showToast('حصل خطأ في الاتصال - اتحفظت الزيارة مؤقتًا', true);
+  }
+  finishUi();
+};
+
+async function deleteVisitEntry(visitId){
+  if(!confirm('حذف هذه الزيارة نهائيًا؟')) return;
+  const isTemp = String(visitId).startsWith('tempv_');
+
+  if(isTemp){
+    currentVisits = currentVisits.filter(v => v.id !== visitId);
+    setCachedVisits(currentPatientId, currentVisits);
+    renderVisits(currentVisits);
+    const q = getWriteQueue().filter(item => item.tempId !== visitId);
+    localStorage.setItem('writeQueue', JSON.stringify(q));
+    return;
+  }
+
+  if(navigator.onLine === false){
+    currentVisits = currentVisits.filter(v => v.id !== visitId);
+    setCachedVisits(currentPatientId, currentVisits);
+    renderVisits(currentVisits);
+    addToWriteQueue({ type:'deleteVisit', patientId: currentPatientId, visitId });
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    return;
+  }
+  try{
+    await deleteDoc(doc(db, "patients", currentPatientId, "visits", visitId));
+    showToast('اتحذفت الزيارة ✓');
+    await loadVisits(currentPatientId);
+  }catch(err){
+    currentVisits = currentVisits.filter(v => v.id !== visitId);
+    setCachedVisits(currentPatientId, currentVisits);
+    renderVisits(currentVisits);
+    addToWriteQueue({ type:'deleteVisit', patientId: currentPatientId, visitId });
+    showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+}
 
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
 window.addEventListener('offline', ()=>{
