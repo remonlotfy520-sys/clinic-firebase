@@ -901,7 +901,7 @@ async function tryFetchListsRemote(){
     if(data.reportPhrases && data.reportPhrases.length) REPORT_PHRASES_LIST = data.reportPhrases;
     if(data.presets) PRESET_PRESCRIPTIONS = data.presets;
     if(data.presetReports) PRESET_REPORTS = data.presetReports;
-    if(data.diagnosisRecs) DIAGNOSIS_RECS = data.diagnosisRecs;
+    if(data.diagnosisRecommendations) DIAGNOSIS_RECS = data.diagnosisRecommendations;
     if(data.operationLocations && data.operationLocations.length){ OPERATION_LOCATIONS.length = 0; OPERATION_LOCATIONS.push(...data.operationLocations); }
     if(data.dressingTypes && data.dressingTypes.length){ DRESSING_TYPES.length = 0; DRESSING_TYPES.push(...data.dressingTypes); }
     const svcRes = await fetch(`${APPS_SCRIPT_URL}?action=getServices&token=${encodeURIComponent(token)}`);
