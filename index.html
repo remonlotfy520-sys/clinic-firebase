@@ -186,6 +186,7 @@
         <button class="tab-btn" data-tab="tab-rx">الروشتة</button>
         <button class="tab-btn" data-tab="tab-physio">العلاج الطبيعي</button>
         <button class="tab-btn" data-tab="tab-reports">التقارير الطبية</button>
+        <button class="tab-btn" data-tab="tab-invoices">الفواتير</button>
       </div>
 
       <div class="tab-panel active" id="tab-basic">
@@ -486,6 +487,56 @@
           <div id="reportHistoryList"></div>
         </div>
       </div>
+
+      <div class="tab-panel" id="tab-invoices">
+        <div class="exam-card">
+          <div class="visits-head">
+            <h2 style="margin:0;">سجل الفواتير</h2>
+            <button class="btn btn-ghost" id="toggleInvoiceBtn">+ فاتورة جديدة</button>
+          </div>
+
+          <div class="new-visit-form" id="newInvoiceForm">
+            <div class="field" style="max-width:200px;">
+              <label>تاريخ الفاتورة</label>
+              <input type="date" id="invDate">
+            </div>
+
+            <div class="field">
+              <label>إضافة خدمة</label>
+              <select id="invServiceSelect" class="dropdown-add-select"></select>
+            </div>
+
+            <div class="field">
+              <label>أو أضف بند مخصص (زي "عملية" أو أي حاجة مش في القايمة)</label>
+              <div style="display:flex; gap:8px;">
+                <input type="text" id="invCustomName" placeholder="اسم البند..." style="flex:2;">
+                <input type="text" id="invCustomPrice" placeholder="السعر" style="flex:1;">
+                <button type="button" class="btn btn-ghost" id="addCustomInvoiceItemBtn">إضافة</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <div id="invItemsList" style="background:#FCFBF8; border:1px solid var(--line); border-radius:10px; padding:8px;"></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding:0 6px;">
+                <span style="font-weight:800; font-family:'Cairo';">الإجمالي</span>
+                <span id="invTotal" style="font-weight:800; font-family:'Cairo'; font-size:20px; color:var(--teal-dark);">0</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>ملاحظات</label>
+              <textarea id="invNotes" style="min-height:80px;" placeholder="ملاحظات إضافية على الفاتورة..."></textarea>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-primary" id="saveInvoiceBtn">حفظ الفاتورة</button>
+              <button class="btn btn-ghost" id="cancelInvoiceBtn">إلغاء</button>
+            </div>
+          </div>
+
+          <div id="invoicesList"></div>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -643,6 +694,7 @@ let REPORT_PHRASES_LIST = [];
 let PRESET_PRESCRIPTIONS = [];
 let PRESET_REPORTS = [];
 let DIAGNOSIS_RECS = [];
+let SERVICES_LIST = [];
 
 /* بتحاول تجيب القوايم الحقيقية من الشيت القديم لو فيه بيانات دخول محفوظة بالفعل -
    من غير ما تفتح أي مربع تسجيل دخول لوحدها (ده بيحصل بس أول مرة تستخدم فيها تاب الصور) */
@@ -665,6 +717,9 @@ async function tryFetchListsRemote(){
     if(data.diagnosisRecs) DIAGNOSIS_RECS = data.diagnosisRecs;
     if(data.operationLocations && data.operationLocations.length){ OPERATION_LOCATIONS.length = 0; OPERATION_LOCATIONS.push(...data.operationLocations); }
     if(data.dressingTypes && data.dressingTypes.length){ DRESSING_TYPES.length = 0; DRESSING_TYPES.push(...data.dressingTypes); }
+    const svcRes = await fetch(`${APPS_SCRIPT_URL}?action=getServices&token=${encodeURIComponent(token)}`);
+    const svcData = await svcRes.json();
+    if(svcData.results) SERVICES_LIST = svcData.results;
     refreshAllListUi();
   }catch(err){ /* هنستخدم القوايم الافتراضية عادي */ }
 }
@@ -680,6 +735,7 @@ function refreshAllListUi(){
   renderDiagnosisRecsList();
   renderPresetReportsList();
   renderReportPhraseSelect();
+  renderServiceSelect();
 }
 
 let letterheadImageData = null;
@@ -887,6 +943,18 @@ function renderReportPhraseSelect(){
   };
 }
 
+function renderServiceSelect(){
+  const select = $('invServiceSelect');
+  select.innerHTML = `<option value="">— اختر خدمة —</option>` + SERVICES_LIST.map((s,i) => `<option value="${i}">${escapeHtml(s.name)} (${escapeHtml(String(s.price))})</option>`).join('');
+  select.onchange = ()=>{
+    if(select.value === '') return;
+    const svc = SERVICES_LIST[select.value];
+    currentInvoiceItems.push({ name: svc.name, price: svc.price });
+    renderInvoiceItems();
+    select.value = '';
+  };
+}
+
 buildMedicineRows();
 renderDropdownAdd('rxRecommendationsSelect', 'rxRecommendations', RECOMMENDATIONS_LIST);
 renderDropdownAppendToTextarea('rxRadiologyReqSelect', 'rxRadiologyReq', RADIOLOGY_LIST);
@@ -896,6 +964,7 @@ renderPresetRxList();
 renderDiagnosisRecsList();
 renderPresetReportsList();
 renderReportPhraseSelect();
+renderServiceSelect();
 
 /* ====== إعدادات Firebase بتاعتك ====== */
 const firebaseConfig = {
@@ -918,6 +987,9 @@ let editingVisitId = null;
 let currentOperations = [];
 let editingOperationId = null;
 let currentImages = [];
+let currentInvoiceItems = [];
+let editingInvoiceId = null;
+let currentInvoices = [];
 
 /* ---------- Toast ---------- */
 function showToast(msg, isError){
@@ -998,6 +1070,15 @@ async function flushWriteQueue(){
       } else if(item.type === 'deleteHistory'){
         await deleteDoc(doc(db, "patients", item.patientId, "history", item.historyId));
         touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'addInvoice'){
+        await addDoc(collection(db, "patients", item.patientId, "invoices"), { ...item.data, CreatedAt: serverTimestamp() });
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'updateInvoice'){
+        await updateDoc(doc(db, "patients", item.patientId, "invoices", item.invoiceId), item.data);
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'deleteInvoice'){
+        await deleteDoc(doc(db, "patients", item.patientId, "invoices", item.invoiceId));
+        touchedPatientIds.add(item.patientId);
       }
     }catch(err){ remaining.push(item); }
   }
@@ -1009,6 +1090,7 @@ async function flushWriteQueue(){
       await loadVisits(currentPatientId);
       await loadOperations(currentPatientId);
       await loadHistory(currentPatientId);
+      await loadInvoices(currentPatientId);
     }
   }
 }
@@ -1159,6 +1241,9 @@ function openPatient(id){
     currentHistory = [];
     resetPrescriptionForm(); resetPhysioForm(); resetReportForm();
     renderAllHistory();
+    currentInvoices = [];
+    $('invoicesList').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل تسجيل فواتير</div>';
+    $('toggleInvoiceBtn').style.display = 'none';
   } else {
     $('toggleVisitBtn').style.display = 'inline-block';
     loadVisits(id);
@@ -1166,6 +1251,8 @@ function openPatient(id){
     loadOperations(id);
     resetPrescriptionForm(); resetPhysioForm(); resetReportForm();
     loadHistory(id);
+    $('toggleInvoiceBtn').style.display = 'inline-block';
+    loadInvoices(id);
     $('uploadImageLabel').style.display = 'inline-flex';
     loadImages(id);
   }
@@ -1203,6 +1290,9 @@ $('newPatientBtn').onclick = ()=>{
   currentHistory = [];
   resetPrescriptionForm(); resetPhysioForm(); resetReportForm();
   renderAllHistory();
+  currentInvoices = [];
+  $('invoicesList').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل تسجيل فواتير</div>';
+  $('toggleInvoiceBtn').style.display = 'none';
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
@@ -1895,6 +1985,32 @@ function buildReportBodyHtml(rep){
     <div style="white-space:pre-wrap;">${escapeHtml(rep.body || '')}</div>`;
 }
 
+function buildInvoiceBodyHtml(items, total, notes){
+  if(!items || !items.length) return '<div style="color:#888;">لا يوجد خدمات مسجلة</div>';
+  let html = '<table style="width:100%; border-collapse:collapse; font-size:10pt;">';
+  html += `<tr style="border-bottom:1.5px solid #1F4A40;">
+    <th style="text-align:right; padding:8px 4px;">الخدمة</th>
+    <th style="text-align:left; padding:8px 4px;">السعر</th>
+  </tr>`;
+  items.forEach(it=>{
+    html += `<tr style="border-bottom:1px solid #e2ddce;">
+      <td style="padding:8px 4px;">${escapeHtml(it.name)}</td>
+      <td style="text-align:left; padding:8px 4px;">${escapeHtml(String(it.price))}</td>
+    </tr>`;
+  });
+  html += `<tr>
+    <td style="padding:12px 4px 4px; font-weight:800;">الإجمالي</td>
+    <td style="text-align:left; padding:12px 4px 4px; font-weight:800;">${escapeHtml(String(total))}</td>
+  </tr>`;
+  html += '</table>';
+  if(notes && notes.trim()){
+    html += `<div style="margin-top:18px; padding-top:10px; border-top:1px solid #e2ddce; white-space:pre-wrap; font-size:9.5pt; color:#444;">
+      <b>ملاحظات:</b> ${escapeHtml(notes)}
+    </div>`;
+  }
+  return html;
+}
+
 /* ---------- توليد PDF (بشعار اختياري + QR) ---------- */
 async function exportRxTemplateAsPdf(bodyHtml, filenamePrefix, btn, dateOverride){
   const name = $('fName').value.trim() || '—';
@@ -2174,6 +2290,213 @@ $('downloadReportBtn').onclick = ()=>{
   if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
   exportRxTemplateAsPdf(buildReportBodyHtml(collectReport()), 'تقرير-طبي', $('downloadReportBtn'));
 };
+
+/* ---------- الفواتير ---------- */
+function renderInvoiceItems(){
+  const box = $('invItemsList');
+  if(!currentInvoiceItems.length){
+    box.innerHTML = '<div class="no-visits">لسه مفيش خدمات مضافة</div>';
+  } else {
+    box.innerHTML = currentInvoiceItems.map((it,i) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 6px; border-bottom:1px solid var(--line); gap:8px;">
+        <span style="flex:1;">${escapeHtml(it.name)}</span>
+        <input type="text" class="inv-item-price" data-idx="${i}" value="${escapeHtml(String(it.price))}" style="width:80px; padding:6px 8px; border-radius:7px; border:1px solid var(--line); text-align:center; font-family:'Tajawal'; font-size:13.5px;">
+        <button type="button" class="btn btn-ghost inv-remove-btn" data-idx="${i}" style="padding:3px 9px; font-size:12px;">✕</button>
+      </div>`).join('');
+    box.querySelectorAll('.inv-item-price').forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        currentInvoiceItems[Number(inp.dataset.idx)].price = inp.value;
+        updateInvoiceTotalDisplay();
+      });
+    });
+    box.querySelectorAll('.inv-remove-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        currentInvoiceItems.splice(Number(btn.dataset.idx), 1);
+        renderInvoiceItems();
+      });
+    });
+  }
+  updateInvoiceTotalDisplay();
+}
+function updateInvoiceTotalDisplay(){
+  const total = currentInvoiceItems.reduce((sum, it) => sum + (parseFloat(it.price) || 0), 0);
+  $('invTotal').textContent = total;
+}
+$('addCustomInvoiceItemBtn').onclick = ()=>{
+  const name = $('invCustomName').value.trim();
+  const price = $('invCustomPrice').value.trim();
+  if(!name){ showToast('اكتب اسم البند الأول', true); return; }
+  currentInvoiceItems.push({ name, price: price || 0 });
+  renderInvoiceItems();
+  $('invCustomName').value = '';
+  $('invCustomPrice').value = '';
+};
+
+function getCachedInvoices(patientId){
+  try{ return JSON.parse(localStorage.getItem('invoices_' + patientId) || '[]'); }catch(e){ return []; }
+}
+function setCachedInvoices(patientId, list){
+  try{ localStorage.setItem('invoices_' + patientId, JSON.stringify(list)); }catch(e){}
+}
+
+async function loadInvoices(patientId){
+  const cached = getCachedInvoices(patientId);
+  if(cached.length){ currentInvoices = cached; renderInvoices(cached); }
+  if(navigator.onLine === false){ if(!cached.length) $('invoicesList').innerHTML = '<div class="no-visits">لسه مفيش فواتير محفوظة أوفلاين</div>'; return; }
+  try{
+    const snap = await getDocs(query(collection(db, "patients", patientId, "invoices"), orderBy('InvoiceDate', 'desc')));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    currentInvoices = list;
+    setCachedInvoices(patientId, list);
+    renderInvoices(list);
+  }catch(err){ if(!cached.length) $('invoicesList').innerHTML = '<div class="no-visits">تعذر تحميل الفواتير</div>'; }
+}
+
+function renderInvoices(invoices){
+  const box = $('invoicesList');
+  if(!invoices.length){ box.innerHTML = '<div class="no-visits">لسه مفيش فواتير مسجلة</div>'; return; }
+  box.innerHTML = invoices.map((inv,i) => `
+    <div class="visit-item" data-idx="${i}">
+      <div class="visit-date">${escapeHtml(String(inv.InvoiceDate || '').slice(0,10))} ${inv._pending ? '⏳' : ''}</div>
+      <div class="visit-notes">${(inv.Items || []).map(it => escapeHtml(it.name) + ' (' + escapeHtml(String(it.price)) + ')').join(' - ')}</div>
+      <div class="visit-notes"><b class="visit-label">الإجمالي:</b> ${escapeHtml(String(inv.Total))}</div>
+      ${inv.Notes ? `<div class="visit-notes"><b class="visit-label">ملاحظات:</b> ${escapeHtml(inv.Notes)}</div>` : ''}
+      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <button class="btn btn-ghost inv-edit-btn" style="padding:6px 12px; font-size:12.5px;">تعديل</button>
+        <button class="btn btn-outline-red inv-delete-btn" style="padding:6px 12px; font-size:12.5px;">حذف</button>
+        <button class="btn btn-primary inv-pdf-btn" style="padding:6px 12px; font-size:12.5px;">تحميل PDF</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('.visit-item').forEach(item=>{
+    const inv = invoices[item.dataset.idx];
+    const editBtn = item.querySelector('.inv-edit-btn');
+    const delBtn = item.querySelector('.inv-delete-btn');
+    const pdfBtn = item.querySelector('.inv-pdf-btn');
+    editBtn.addEventListener('click', ()=> startEditInvoice(inv));
+    delBtn.addEventListener('click', ()=> deleteInvoiceEntry(inv.id));
+    pdfBtn.addEventListener('click', ()=>{
+      const bodyHtml = buildInvoiceBodyHtml(inv.Items || [], inv.Total, inv.Notes);
+      exportRxTemplateAsPdf(bodyHtml, 'فاتورة', pdfBtn, String(inv.InvoiceDate || '').slice(0,10));
+    });
+  });
+}
+
+function startEditInvoice(inv){
+  editingInvoiceId = inv.id;
+  currentInvoiceItems = (inv.Items || []).slice();
+  $('invDate').value = String(inv.InvoiceDate || '').slice(0,10);
+  $('invNotes').value = inv.Notes || '';
+  $('saveInvoiceBtn').textContent = 'حفظ التعديل';
+  renderInvoiceItems();
+  $('newInvoiceForm').classList.add('open');
+  $('newInvoiceForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+$('toggleInvoiceBtn').onclick = ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
+  editingInvoiceId = null;
+  currentInvoiceItems = [];
+  $('invDate').value = new Date().toISOString().slice(0,10);
+  $('invNotes').value = '';
+  $('saveInvoiceBtn').textContent = 'حفظ الفاتورة';
+  renderInvoiceItems();
+  $('newInvoiceForm').classList.add('open');
+};
+$('cancelInvoiceBtn').onclick = ()=>{
+  editingInvoiceId = null;
+  $('saveInvoiceBtn').textContent = 'حفظ الفاتورة';
+  $('newInvoiceForm').classList.remove('open');
+};
+
+$('saveInvoiceBtn').onclick = async ()=>{
+  const date = $('invDate').value;
+  if(!date){ showToast('اختار تاريخ الفاتورة', true); return; }
+  if(!currentInvoiceItems.length){ showToast('ضيف خدمة واحدة على الأقل', true); return; }
+  const total = currentInvoiceItems.reduce((sum, it) => sum + (parseFloat(it.price) || 0), 0);
+  const data = { InvoiceDate: date, Items: currentInvoiceItems, Total: total, Notes: $('invNotes').value.trim() };
+  const isEditing = !!editingInvoiceId;
+  const btn = $('saveInvoiceBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+
+  const finishUi = ()=>{
+    editingInvoiceId = null; currentInvoiceItems = [];
+    $('newInvoiceForm').classList.remove('open');
+    btn.disabled = false; btn.textContent = 'حفظ الفاتورة';
+  };
+
+  if(navigator.onLine === false){
+    if(isEditing){
+      const idx = currentInvoices.findIndex(inv => inv.id === editingInvoiceId);
+      if(idx !== -1) currentInvoices[idx] = { ...currentInvoices[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateInvoice', patientId: currentPatientId, invoiceId: editingInvoiceId, data });
+    } else {
+      const tempId = 'tempi_' + Date.now();
+      currentInvoices.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addInvoice', patientId: currentPatientId, data, tempId });
+    }
+    setCachedInvoices(currentPatientId, currentInvoices);
+    renderInvoices(currentInvoices);
+    showToast('النت مقطوع - اتحفظت الفاتورة مؤقتًا وهتتزامن تلقائي', true);
+    finishUi();
+    return;
+  }
+  try{
+    if(isEditing){
+      await updateDoc(doc(db, "patients", currentPatientId, "invoices", editingInvoiceId), data);
+    } else {
+      await addDoc(collection(db, "patients", currentPatientId, "invoices"), { ...data, CreatedAt: serverTimestamp() });
+    }
+    showToast(isEditing ? 'اتحدّثت الفاتورة ✓' : 'اتسجلت الفاتورة ✓');
+    await loadInvoices(currentPatientId);
+  }catch(err){
+    if(isEditing){
+      const idx = currentInvoices.findIndex(inv => inv.id === editingInvoiceId);
+      if(idx !== -1) currentInvoices[idx] = { ...currentInvoices[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateInvoice', patientId: currentPatientId, invoiceId: editingInvoiceId, data });
+    } else {
+      const tempId = 'tempi_' + Date.now();
+      currentInvoices.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addInvoice', patientId: currentPatientId, data, tempId });
+    }
+    setCachedInvoices(currentPatientId, currentInvoices);
+    renderInvoices(currentInvoices);
+    showToast('حصل خطأ في الاتصال - اتحفظت الفاتورة مؤقتًا', true);
+  }
+  finishUi();
+};
+
+async function deleteInvoiceEntry(invoiceId){
+  if(!confirm('حذف هذه الفاتورة نهائيًا؟')) return;
+  const isTemp = String(invoiceId).startsWith('tempi_');
+  if(isTemp){
+    currentInvoices = currentInvoices.filter(inv => inv.id !== invoiceId);
+    setCachedInvoices(currentPatientId, currentInvoices);
+    renderInvoices(currentInvoices);
+    const q = getWriteQueue().filter(item => item.tempId !== invoiceId);
+    localStorage.setItem('writeQueue', JSON.stringify(q));
+    return;
+  }
+  if(navigator.onLine === false){
+    currentInvoices = currentInvoices.filter(inv => inv.id !== invoiceId);
+    setCachedInvoices(currentPatientId, currentInvoices);
+    renderInvoices(currentInvoices);
+    addToWriteQueue({ type:'deleteInvoice', patientId: currentPatientId, invoiceId });
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    return;
+  }
+  try{
+    await deleteDoc(doc(db, "patients", currentPatientId, "invoices", invoiceId));
+    showToast('اتحذفت الفاتورة ✓');
+    await loadInvoices(currentPatientId);
+  }catch(err){
+    currentInvoices = currentInvoices.filter(inv => inv.id !== invoiceId);
+    setCachedInvoices(currentPatientId, currentInvoices);
+    renderInvoices(currentInvoices);
+    addToWriteQueue({ type:'deleteInvoice', patientId: currentPatientId, invoiceId });
+    showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+}
 
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
 window.addEventListener('offline', ()=>{
