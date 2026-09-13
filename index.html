@@ -175,6 +175,7 @@
     📅
     <span id="calendarBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--teal-dark); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
   </button>
+  <button class="btn btn-ghost" id="viewStatsBtn">📊 إحصائيات</button>
   <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   <div class="brand">
     <div class="mark">ع</div>
@@ -252,6 +253,14 @@
     <div id="calendarListView" style="display:none;">
       <div id="appointmentsFullList"></div>
     </div>
+  </div>
+
+  <div id="statsView" style="display:none;">
+    <div class="visits-head" style="margin-bottom:14px;">
+      <h2 style="margin:0;">الإحصائيات والتقارير</h2>
+      <button class="btn btn-ghost" id="closeStatsViewBtn">✕ إغلاق</button>
+    </div>
+    <div id="statsContent"></div>
   </div>
 
   <div id="workspace" style="display:none;">
@@ -686,7 +695,7 @@ import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
-  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+  getFirestore, collection, collectionGroup, doc, addDoc, updateDoc, deleteDoc,
   getDoc, getDocs, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
@@ -1422,6 +1431,8 @@ $('newPatientBtn').onclick = ()=>{
   $('bookApptCard').style.display = 'none';
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
+  $('calendarView').style.display = 'none';
+  $('statsView').style.display = 'none';
   $('workspace').style.display = 'block';
   resetToBasicTab();
 };
@@ -2895,6 +2906,7 @@ $('calNextMonthBtn').onclick = ()=>{
 $('viewCalendarBtn').onclick = ()=>{
   $('listView').style.display = 'none';
   $('workspace').style.display = 'none';
+  $('statsView').style.display = 'none';
   $('calendarView').style.display = 'block';
   loadAppointments();
 };
@@ -2937,6 +2949,148 @@ $('bookApptSaveBtn').onclick = async ()=>{
     showToast('حصل خطأ في الاتصال - اتحفظ مؤقتًا', true);
   }
   btn.disabled = false; btn.textContent = orig;
+};
+
+/* ---------- الإحصائيات والتقارير ---------- */
+function statBlock(label, value){
+  return `<div class="exam-card" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px;">
+    <div style="font-weight:700; color:var(--ink);">${escapeHtml(label)}</div>
+    <div style="font-family:'Cairo'; font-weight:800; font-size:22px; color:var(--teal-dark);">${value}</div>
+  </div>`;
+}
+
+async function loadStats(){
+  const box = $('statsContent');
+  box.innerHTML = '<div class="no-visits">جاري التحميل...</div>';
+  if(navigator.onLine === false){
+    box.innerHTML = '<div class="exam-card"><div class="no-visits">الإحصائيات محتاجة نت - جرب تاني وانت أونلاين</div></div>';
+    return;
+  }
+  try{
+    const patSnap = await getDocs(patientsCol);
+    const patients = []; patSnap.forEach(d => patients.push({ id: d.id, ...d.data() }));
+
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const monthAgo = new Date(now.getTime() - 30*24*60*60*1000);
+    const yearAgo = new Date(now.getTime() - 365*24*60*60*1000);
+    let newWeek=0, newMonth=0, newYear=0;
+    patients.forEach(p=>{
+      const c = p.CreatedAt && p.CreatedAt.toDate ? p.CreatedAt.toDate() : null;
+      if(!c) return;
+      if(c >= weekAgo) newWeek++;
+      if(c >= monthAgo) newMonth++;
+      if(c >= yearAgo) newYear++;
+    });
+
+    const visitsSnap = await getDocs(collectionGroup(db, 'visits'));
+    const visitCountByPatient = {};
+    visitsSnap.forEach(d=>{
+      const patientId = d.ref.parent.parent.id;
+      visitCountByPatient[patientId] = (visitCountByPatient[patientId] || 0) + 1;
+    });
+    const twoPlusVisits = Object.values(visitCountByPatient).filter(c => c >= 2).length;
+
+    const historySnap = await getDocs(collectionGroup(db, 'history'));
+    const latestRxByPatient = {};
+    const patientsWithPhysio = new Set();
+    const patientsWithReport = new Set();
+    historySnap.forEach(d=>{
+      const patientId = d.ref.parent.parent.id;
+      const h = d.data();
+      let content = {}; try{ content = JSON.parse(h.Content || '{}'); }catch(e){}
+      if(h.Type === 'rx' && content.diagnosis && content.diagnosis.trim()){
+        const existing = latestRxByPatient[patientId];
+        const hDate = String(h.HistoryDate || '');
+        if(!existing || hDate > existing.date) latestRxByPatient[patientId] = { date: hDate, diagnosis: content.diagnosis.trim() };
+      }
+      if(h.Type === 'physio' && content && ((content.diagnosis && content.diagnosis.trim()) || (content.interventions && content.interventions.length))) patientsWithPhysio.add(patientId);
+      if(h.Type === 'report' && content && content.body && content.body.trim()) patientsWithReport.add(patientId);
+    });
+    const byDiagnosis = {};
+    Object.values(latestRxByPatient).forEach(r => { byDiagnosis[r.diagnosis] = (byDiagnosis[r.diagnosis] || 0) + 1; });
+
+    const ageGroups = { '0-18':0, '19-40':0, '41-60':0, '61+':0, 'غير محدد':0 };
+    patients.forEach(p=>{
+      const age = parseInt(p.Age, 10);
+      if(isNaN(age)) ageGroups['غير محدد']++;
+      else if(age <= 18) ageGroups['0-18']++;
+      else if(age <= 40) ageGroups['19-40']++;
+      else if(age <= 60) ageGroups['41-60']++;
+      else ageGroups['61+']++;
+    });
+
+    const withOperations = patients.filter(p => !!p.HasOperation).length;
+    const redFlags = patients.filter(p => !!p.RedFlag).length;
+
+    const invoicesSnap = await getDocs(collectionGroup(db, 'invoices'));
+    let revenueWeek=0, revenueMonth=0, revenueAll=0;
+    const serviceRevenue = {};
+    invoicesSnap.forEach(d=>{
+      const inv = d.data();
+      const total = parseFloat(inv.Total) || 0;
+      revenueAll += total;
+      const dateStr = String(inv.InvoiceDate || '');
+      const invDate = dateStr ? new Date(dateStr) : null;
+      if(invDate && !isNaN(invDate)){
+        if(invDate >= weekAgo) revenueWeek += total;
+        if(invDate >= monthAgo) revenueMonth += total;
+      }
+      (inv.Items || []).forEach(it=>{
+        const price = parseFloat(it.price) || 0;
+        serviceRevenue[it.name] = (serviceRevenue[it.name] || 0) + price;
+      });
+    });
+    const topServicesByRevenue = Object.entries(serviceRevenue).sort((a,b) => b[1]-a[1]).slice(0,5);
+
+    let html = '';
+    html += statBlock('عدد المرضى الكلي', patients.length);
+    html += statBlock('مرضى جدد هذا الأسبوع', newWeek);
+    html += statBlock('مرضى جدد هذا الشهر', newMonth);
+    html += statBlock('مرضى جدد هذه السنة', newYear);
+    html += statBlock('مرضى بزيارتين أو أكتر', twoPlusVisits);
+    html += statBlock('مرضى ليهم عمليات', withOperations);
+    html += statBlock('مرضى ليهم علاج طبيعي', patientsWithPhysio.size);
+    html += statBlock('مرضى ليهم تقرير طبي', patientsWithReport.size);
+    html += statBlock('🚩 حالات Red Flag', redFlags);
+
+    html += `<div class="exam-card"><h2>💰 التقرير المالي</h2>`;
+    html += `<div class="visit-notes">دخل الأسبوع: <b>${escapeHtml(String(revenueWeek))}</b></div>`;
+    html += `<div class="visit-notes">دخل الشهر: <b>${escapeHtml(String(revenueMonth))}</b></div>`;
+    html += `<div class="visit-notes">إجمالي الدخل: <b>${escapeHtml(String(revenueAll))}</b></div>`;
+    if(topServicesByRevenue.length){
+      html += `<div class="visit-date" style="margin-top:14px;">أكتر الخدمات دخلًا</div>`;
+      topServicesByRevenue.forEach(([name,total]) => { html += `<div class="visit-notes">${escapeHtml(name)}: <b>${escapeHtml(String(total))}</b></div>`; });
+    }
+    html += `</div>`;
+
+    html += `<div class="exam-card"><h2>حسب السن</h2>`;
+    Object.keys(ageGroups).forEach(k => { html += `<div class="visit-notes">${escapeHtml(k)}: <b>${ageGroups[k]}</b></div>`; });
+    html += `</div>`;
+
+    const diagEntries = Object.entries(byDiagnosis).sort((a,b) => b[1]-a[1]);
+    html += `<div class="exam-card"><h2>حسب التشخيص</h2>`;
+    if(!diagEntries.length){ html += `<div class="no-visits">لا يوجد تشخيصات مسجلة</div>`; }
+    else{ diagEntries.forEach(([diag,count]) => { html += `<div class="visit-notes">${escapeHtml(diag)}: <b>${count}</b></div>`; }); }
+    html += `</div>`;
+
+    box.innerHTML = html;
+  }catch(err){
+    box.innerHTML = '<div class="exam-card"><div class="no-visits">تعذر تحميل الإحصائيات</div></div>';
+  }
+}
+
+$('viewStatsBtn').onclick = ()=>{
+  $('listView').style.display = 'none';
+  $('workspace').style.display = 'none';
+  $('calendarView').style.display = 'none';
+  $('statsView').style.display = 'block';
+  loadStats();
+};
+$('closeStatsViewBtn').onclick = ()=>{
+  $('statsView').style.display = 'none';
+  $('listView').style.display = 'block';
+  loadPatientsList();
 };
 
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
