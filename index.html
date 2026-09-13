@@ -292,7 +292,7 @@ function renderPatientsList(list){
   box.innerHTML = list.map(p => `
     <div class="patient-row" data-id="${p.id}">
       <div>
-        <div class="pname">${escapeHtml(p.Name || '—')} ${p.RedFlag ? '🚩' : ''}</div>
+        <div class="pname">${escapeHtml(p.Name || '—')} ${p.RedFlag ? '🚩' : ''} ${p._pending ? '⏳' : ''}</div>
         <div class="pmeta">${escapeHtml(p.Phone || '')} ${p.ClinicNumber ? '· رقم ' + escapeHtml(p.ClinicNumber) : ''}</div>
       </div>
     </div>`).join('');
@@ -354,6 +354,42 @@ async function savePatientToFirestore(data, id, isFromQueue){
   }
 }
 
+/* حفظ فوري في القايمة المحلية وقت الأوفلاين - من غير ما نستنى رد من فايرستور خالص،
+   عشان مبيتحفظش إلا لما النت يرجع من نفسه وممكن ياخد وقت طويل */
+function saveOfflineOptimistic(data, id){
+  const isTemp = id && String(id).startsWith('temp_');
+  if(isTemp){
+    // تعديل على مريض لسه مضاف أوفلاين ومتزامنش - نحدّث نفس عنصر الطابور بدل ما نضيف حاجة جديدة
+    const idx = allPatients.findIndex(p => p.id === id);
+    if(idx !== -1){ allPatients[idx] = { ...allPatients[idx], ...data, _pending: true }; }
+    const q = getWriteQueue();
+    const qIdx = q.findIndex(item => item.tempId === id);
+    if(qIdx !== -1){ q[qIdx].data = data; localStorage.setItem('writeQueue', JSON.stringify(q)); }
+  } else if(id){
+    const idx = allPatients.findIndex(p => p.id === id);
+    if(idx !== -1){ allPatients[idx] = { ...allPatients[idx], ...data, _pending: true }; }
+    addToWriteQueue({ type:'save', data, id });
+  } else {
+    const tempId = 'temp_' + Date.now();
+    allPatients.unshift({ id: tempId, ...data, _pending: true });
+    addToWriteQueue({ type:'save', data, id: null, tempId });
+    currentPatientId = tempId;
+  }
+  setCachedPatients(allPatients);
+}
+
+function deleteOfflineOptimistic(id){
+  allPatients = allPatients.filter(p => p.id !== id);
+  setCachedPatients(allPatients);
+  const isTemp = String(id).startsWith('temp_');
+  if(isTemp){
+    const q = getWriteQueue().filter(item => item.tempId !== id);
+    localStorage.setItem('writeQueue', JSON.stringify(q));
+  } else {
+    addToWriteQueue({ type:'delete', id });
+  }
+}
+
 $('savePatientBtn').onclick = async ()=>{
   const name = $('fName').value.trim();
   if(!name){ showToast('اكتب اسم المريض الأول', true); return; }
@@ -367,6 +403,17 @@ $('savePatientBtn').onclick = async ()=>{
     RedFlag: $('fRedFlag').checked
   };
 
+  // لو أوفلاين فعليًا، منستناش رد جوجل خالص (ممكن ياخد وقت طويل جدًا وهو مستني النت يرجع) -
+  // نحفظ نسخة محلية فورًا ونضيفها للطابور عشان تتزامن أول ما النت يرجع
+  if(navigator.onLine === false){
+    saveOfflineOptimistic(data, currentPatientId);
+    showToast('النت مقطوع - اتحفظ مؤقتًا وهيتزامن تلقائي أول ما النت يرجع', true);
+    $('workspace').style.display = 'none';
+    $('listView').style.display = 'block';
+    renderPatientsList(allPatients);
+    return;
+  }
+
   const btn = $('savePatientBtn');
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
   try{
@@ -376,9 +423,8 @@ $('savePatientBtn').onclick = async ()=>{
     $('listView').style.display = 'block';
     await loadPatientsList();
   }catch(err){
-    // فشل الحفظ - غالبًا بسبب انقطاع النت - نخزنه مؤقتًا ونكمل عادي
-    addToWriteQueue({ type:'save', data, id: currentPatientId });
-    showToast('النت مقطوع - الحفظ هيتم تلقائي أول ما النت يرجع', true);
+    saveOfflineOptimistic(data, currentPatientId);
+    showToast('حصل خطأ في الاتصال - اتحفظ مؤقتًا وهيتزامن تلقائي', true);
     $('workspace').style.display = 'none';
     $('listView').style.display = 'block';
   }finally{
@@ -389,16 +435,29 @@ $('savePatientBtn').onclick = async ()=>{
 $('deletePatientBtn').onclick = async ()=>{
   if(!currentPatientId) return;
   if(!confirm('حذف هذا المريض نهائيًا؟')) return;
+
+  if(navigator.onLine === false){
+    deleteOfflineOptimistic(currentPatientId);
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    $('workspace').style.display = 'none';
+    $('listView').style.display = 'block';
+    renderPatientsList(allPatients);
+    return;
+  }
+
   try{
     await deleteDoc(doc(db, "patients", currentPatientId));
     showToast('اتحذف المريض ✓');
+    $('workspace').style.display = 'none';
+    $('listView').style.display = 'block';
+    await loadPatientsList();
   }catch(err){
-    addToWriteQueue({ type:'delete', id: currentPatientId });
-    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    deleteOfflineOptimistic(currentPatientId);
+    showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    $('workspace').style.display = 'none';
+    $('listView').style.display = 'block';
+    renderPatientsList(allPatients);
   }
-  $('workspace').style.display = 'none';
-  $('listView').style.display = 'block';
-  await loadPatientsList();
 };
 
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
