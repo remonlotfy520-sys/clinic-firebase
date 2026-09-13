@@ -3397,6 +3397,25 @@ function initApp(){
   populateOperationDropdowns();
   tryFetchListsRemote();
   loadAppointments();
+  checkUrlPatientParam();
+}
+
+/* لو الرابط فيه ?patient=xxx (زي لينكات الـ QR على الروشتات المطبوعة)، نفتح ملف المريض ده تلقائي */
+async function checkUrlPatientParam(){
+  const params = new URLSearchParams(location.search);
+  const patientId = params.get('patient');
+  if(!patientId) return;
+  history.replaceState({}, '', location.pathname);
+  try{
+    const snap = await getDoc(doc(db, "patients", patientId));
+    if(snap.exists()){
+      const p = { id: snap.id, ...snap.data() };
+      if(!allPatients.find(x => x.id === p.id)) allPatients.unshift(p);
+      openPatient(p.id);
+    } else {
+      showToast('المريض ده مش موجود أو اتحذف', true);
+    }
+  }catch(err){ showToast('تعذر فتح المريض من الرابط', true); }
 }
 
 /* ---------- تسجيل الـ Service Worker (يخلي الموقع نفسه يفتح من غير نت) ---------- */
