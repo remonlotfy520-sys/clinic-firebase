@@ -63,6 +63,11 @@
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
   .exam-card{margin-bottom:18px;}
+  .exam-card textarea, .exam-card input[type="text"]{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
+    font-family:'Tajawal'; font-size:14.5px; background:#FCFBF8; outline:none; color:#1450C4;
+  }
+  .exam-card textarea:focus, .exam-card input[type="text"]:focus{border-color:var(--teal); background:#fff;}
   .exam-card textarea{min-height:150px;}
   .visits-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .new-visit-form{display:none; background:#FCFBF8; border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px;}
