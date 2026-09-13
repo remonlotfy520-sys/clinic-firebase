@@ -124,6 +124,24 @@
   .history-icon-card .icon-box{width:68px;height:68px;margin:0 auto 6px;background:#fff;border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;transition:border-color .15s ease, transform .1s ease;box-shadow:var(--shadow);}
   .history-icon-card:hover .icon-box{border-color:var(--teal);transform:translateY(-2px);}
   .history-icon-card .icon-date{font-size:11.5px;color:var(--muted);font-weight:700;}
+
+  .tab-bar{display:flex;gap:8px;flex-wrap:wrap;}
+  .tab-bar-btn{background:none; border:1px solid var(--line); padding:8px 16px; border-radius:8px; font-family:'Tajawal'; font-weight:700; font-size:13.5px; color:var(--muted); cursor:pointer;}
+  .tab-bar-btn.active{background:var(--teal); color:#fff; border-color:var(--teal);}
+
+  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;}
+  .cal-weekday{text-align:center;font-size:11.5px;color:var(--muted);font-weight:700;padding:4px 0;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-daycell{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;padding:5px;font-size:12.5px;cursor:pointer;position:relative;background:#fff;transition:background .1s ease;}
+  .cal-daycell:hover{background:#F6F3EC;}
+  .cal-daycell.other-month{opacity:.3;}
+  .cal-daycell.today{border-color:var(--teal);border-width:2px;}
+  .cal-daycell.selected{background:var(--teal);color:#fff;}
+  .cal-daynum{font-weight:700;}
+  .cal-dot{position:absolute;bottom:4px;right:50%;transform:translateX(50%);width:6px;height:6px;border-radius:50%;background:var(--red);}
+  .cal-daycell.selected .cal-dot{background:#fff;}
+  .appt-item{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;position:relative; background:#fff;}
+  .appt-date-header{font-family:'Cairo';font-weight:800;color:var(--teal-dark);font-size:14px;margin:14px 0 8px;}
 </style>
 </head>
 <body>
@@ -153,6 +171,10 @@
     استخدام الشعار
   </label>
   <button class="btn btn-primary" id="newPatientBtn">+ مريض جديد</button>
+  <button class="btn btn-ghost" id="viewCalendarBtn" style="position:relative;">
+    📅
+    <span id="calendarBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--teal-dark); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
+  </button>
   <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   <div class="brand">
     <div class="mark">ع</div>
@@ -169,6 +191,67 @@
       <input type="text" id="searchInput" placeholder="ابحث بالاسم...">
     </div>
     <div id="patientsList"><div class="empty-msg">جاري التحميل...</div></div>
+  </div>
+
+  <div id="calendarView" style="display:none;">
+    <div class="visits-head" style="margin-bottom:14px;">
+      <h2 style="margin:0;">المواعيد</h2>
+      <button class="btn btn-ghost" id="closeCalendarViewBtn">✕ إغلاق</button>
+    </div>
+
+    <div class="tab-bar" style="margin-bottom:14px;">
+      <button class="tab-bar-btn active" data-cal-view="calendar">تقويم</button>
+      <button class="tab-bar-btn" data-cal-view="list">قائمة</button>
+    </div>
+
+    <div class="exam-card" style="margin-bottom:16px;">
+      <button class="btn btn-ghost" id="toggleAddAppointmentBtn">+ إضافة موعد</button>
+      <div class="new-visit-form" id="newAppointmentForm">
+        <div class="field-row">
+          <div class="field">
+            <label>التاريخ</label>
+            <input type="date" id="apptDate">
+          </div>
+          <div class="field">
+            <label>الوقت</label>
+            <input type="time" id="apptTime">
+          </div>
+        </div>
+        <div class="field">
+          <label>نوع الحجز</label>
+          <select id="apptTypeSelect" class="dropdown-add-select">
+            <option value="">— اختر نوع أو اكتب في الخانة تحت —</option>
+            <option value="كشف">كشف</option>
+            <option value="استشارة">استشارة</option>
+            <option value="متابعة عملية">متابعة عملية</option>
+            <option value="أخرى">أخرى</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>الموضوع</label>
+          <input type="text" id="apptSubject" placeholder="موضوع الموعد... (تقدر تعدل فيه بحرية)">
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-primary" id="saveAppointmentBtn">حفظ الموعد</button>
+          <button class="btn btn-ghost" id="cancelAppointmentBtn">إلغاء</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="calendarGridView">
+      <div class="visits-head" style="margin-bottom:10px;">
+        <button class="btn btn-ghost" id="calPrevMonthBtn">◀</button>
+        <h2 id="calMonthLabel" style="margin:0;"></h2>
+        <button class="btn btn-ghost" id="calNextMonthBtn">▶</button>
+      </div>
+      <div class="cal-weekdays" id="calWeekdays"></div>
+      <div id="calGrid" class="cal-grid"></div>
+      <div id="calDayList" style="margin-top:16px;"></div>
+    </div>
+
+    <div id="calendarListView" style="display:none;">
+      <div id="appointmentsFullList"></div>
+    </div>
   </div>
 
   <div id="workspace" style="display:none;">
@@ -218,6 +301,31 @@
           <input type="checkbox" id="fRedFlag" style="width:18px;height:18px;">
           🚩 المريض عنده مشكلة (Red Flag)
         </label>
+
+        <div class="exam-card" id="bookApptCard" style="display:none;">
+          <h2>📅 حجز ميعاد للمريض ده</h2>
+          <div class="field-row">
+            <div class="field">
+              <label>التاريخ</label>
+              <input type="date" id="bookApptDate">
+            </div>
+            <div class="field">
+              <label>نوع الحجز</label>
+              <select id="bookApptTypeSelect" class="dropdown-add-select">
+                <option value="">— اختر —</option>
+                <option value="كشف">كشف</option>
+                <option value="استشارة">استشارة</option>
+                <option value="متابعة عملية">متابعة عملية</option>
+                <option value="أخرى">أخرى</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>الموضوع</label>
+            <input type="text" id="bookApptType" placeholder="اكتب أو اختار نوع الحجز فوق...">
+          </div>
+          <button class="btn btn-primary" id="bookApptSaveBtn">حفظ الميعاد في الكالندر</button>
+        </div>
 
         <div style="display:flex; gap:10px;">
           <button class="btn btn-primary" id="savePatientBtn">حفظ بيانات المريض</button>
@@ -990,6 +1098,10 @@ let currentImages = [];
 let currentInvoiceItems = [];
 let editingInvoiceId = null;
 let currentInvoices = [];
+let appointmentsData = [];
+let calCurrentMonth = new Date();
+let calSelectedDateStr = null;
+let editingAppointmentId = null;
 
 /* ---------- Toast ---------- */
 function showToast(msg, isError){
@@ -1035,6 +1147,7 @@ async function flushWriteQueue(){
   if(!q.length) return;
   const remaining = [];
   const touchedPatientIds = new Set();
+  let touchedAppointments = false;
   for(const item of q){
     try{
       if(item.type === 'save'){
@@ -1079,6 +1192,15 @@ async function flushWriteQueue(){
       } else if(item.type === 'deleteInvoice'){
         await deleteDoc(doc(db, "patients", item.patientId, "invoices", item.invoiceId));
         touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'addAppointment'){
+        await addDoc(collection(db, "appointments"), { ...item.data, CreatedAt: serverTimestamp() });
+        touchedAppointments = true;
+      } else if(item.type === 'updateAppointment'){
+        await updateDoc(doc(db, "appointments", item.appointmentId), item.data);
+        touchedAppointments = true;
+      } else if(item.type === 'deleteAppointment'){
+        await deleteDoc(doc(db, "appointments", item.appointmentId));
+        touchedAppointments = true;
       }
     }catch(err){ remaining.push(item); }
   }
@@ -1086,6 +1208,7 @@ async function flushWriteQueue(){
   if(remaining.length === 0 && q.length > 0){
     showToast('اتحفظت كل التعديلات اللي كانت متأخرة وانت أوفلاين ✓');
     await loadPatientsList();
+    if(touchedAppointments) await loadAppointments();
     if(currentPatientId && touchedPatientIds.has(currentPatientId)){
       await loadVisits(currentPatientId);
       await loadOperations(currentPatientId);
@@ -1244,6 +1367,7 @@ function openPatient(id){
     currentInvoices = [];
     $('invoicesList').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل تسجيل فواتير</div>';
     $('toggleInvoiceBtn').style.display = 'none';
+    $('bookApptCard').style.display = 'none';
   } else {
     $('toggleVisitBtn').style.display = 'inline-block';
     loadVisits(id);
@@ -1255,6 +1379,8 @@ function openPatient(id){
     loadInvoices(id);
     $('uploadImageLabel').style.display = 'inline-flex';
     loadImages(id);
+    $('bookApptCard').style.display = 'block';
+    $('bookApptDate').value = ''; $('bookApptTypeSelect').value = ''; $('bookApptType').value = '';
   }
 }
 
@@ -1293,6 +1419,7 @@ $('newPatientBtn').onclick = ()=>{
   currentInvoices = [];
   $('invoicesList').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل تسجيل فواتير</div>';
   $('toggleInvoiceBtn').style.display = 'none';
+  $('bookApptCard').style.display = 'none';
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
@@ -2498,6 +2625,320 @@ async function deleteInvoiceEntry(invoiceId){
   }
 }
 
+/* ---------- المواعيد والكالندر ---------- */
+function getCachedAppointments(){
+  try{ return JSON.parse(localStorage.getItem('appointmentsData') || '[]'); }catch(e){ return []; }
+}
+function setCachedAppointments(list){
+  try{ localStorage.setItem('appointmentsData', JSON.stringify(list)); }catch(e){}
+}
+
+async function loadAppointments(){
+  const cached = getCachedAppointments();
+  if(cached.length){ appointmentsData = cached; renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge(); }
+  if(navigator.onLine === false) return;
+  try{
+    const snap = await getDocs(query(collection(db, "appointments"), orderBy('AppointmentDate', 'asc')));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    appointmentsData = list;
+    setCachedAppointments(list);
+    renderCalendarGrid();
+    renderAppointmentsFullList();
+    updateCalendarBadge();
+  }catch(err){ /* هنستخدم النسخة المحفوظة لو موجودة */ }
+}
+
+function updateCalendarBadge(){
+  const todayStr = new Date().toISOString().slice(0,10);
+  const count = appointmentsData.filter(a => String(a.AppointmentDate || '').slice(0,10) >= todayStr).length;
+  const badge = $('calendarBadge');
+  if(count > 0){ badge.textContent = count; badge.style.display = 'flex'; }
+  else{ badge.style.display = 'none'; }
+}
+
+function buildAppointmentItemHtml(a){
+  return `<div class="appt-item" data-id="${escapeHtml(String(a.id))}">
+    <div class="visit-date">${escapeHtml(a.AppointmentTime || '')} ${a._pending ? '⏳' : ''}</div>
+    <div class="visit-notes"><b>${escapeHtml(a.Subject || '—')}</b></div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="btn btn-ghost appt-edit-btn" style="padding:6px 12px; font-size:12.5px;">تعديل</button>
+      <button class="btn btn-outline-red appt-delete-btn" style="padding:6px 12px; font-size:12.5px;">حذف</button>
+    </div>
+  </div>`;
+}
+function wireAppointmentItemButtons(container){
+  container.querySelectorAll('.appt-item').forEach(item=>{
+    const id = item.dataset.id;
+    const appt = appointmentsData.find(a => String(a.id) === id);
+    if(!appt) return;
+    item.querySelector('.appt-edit-btn').addEventListener('click', ()=> startEditAppointment(appt));
+    item.querySelector('.appt-delete-btn').addEventListener('click', ()=> deleteAppointmentEntry(appt.id));
+  });
+}
+
+function renderCalendarGrid(){
+  const year = calCurrentMonth.getFullYear();
+  const month = calCurrentMonth.getMonth();
+  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  $('calMonthLabel').textContent = `${monthNames[month]} ${year}`;
+
+  const weekdayNames = ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+  $('calWeekdays').innerHTML = weekdayNames.map(w => `<div class="cal-weekday">${w}</div>`).join('');
+
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const apptCountByDate = {};
+  appointmentsData.forEach(a=>{
+    const d = String(a.AppointmentDate || '').slice(0,10);
+    if(!d) return;
+    apptCountByDate[d] = (apptCountByDate[d] || 0) + 1;
+  });
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  let cells = [];
+  for(let i = startWeekday - 1; i >= 0; i--) cells.push({ dayNum: daysInPrevMonth - i, otherMonth: true, dateStr: null });
+  for(let d = 1; d <= daysInMonth; d++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    cells.push({ dayNum: d, otherMonth: false, dateStr });
+  }
+  let nextDay = 1;
+  while(cells.length % 7 !== 0) cells.push({ dayNum: nextDay++, otherMonth: true, dateStr: null });
+
+  $('calGrid').innerHTML = cells.map(c=>{
+    const classes = ['cal-daycell'];
+    if(c.otherMonth) classes.push('other-month');
+    if(c.dateStr === todayStr) classes.push('today');
+    if(c.dateStr && c.dateStr === calSelectedDateStr) classes.push('selected');
+    const count = c.dateStr ? (apptCountByDate[c.dateStr] || 0) : 0;
+    return `<div class="${classes.join(' ')}" data-date="${c.dateStr || ''}">
+      <div class="cal-daynum">${c.dayNum}</div>
+      ${count > 0 ? '<div class="cal-dot"></div>' : ''}
+    </div>`;
+  }).join('');
+
+  $('calGrid').querySelectorAll('.cal-daycell').forEach(cell=>{
+    const dateStr = cell.dataset.date;
+    if(!dateStr) return;
+    cell.addEventListener('click', ()=>{
+      calSelectedDateStr = dateStr;
+      renderCalendarGrid();
+      renderCalDayList(dateStr);
+    });
+  });
+  if(calSelectedDateStr) renderCalDayList(calSelectedDateStr);
+  else renderCalDayList(null);
+}
+
+function renderCalDayList(dateStr){
+  const box = $('calDayList');
+  if(!dateStr){ box.innerHTML = '<div class="no-visits">دوس على يوم عشان تشوف مواعيده</div>'; return; }
+  const items = appointmentsData.filter(a => String(a.AppointmentDate || '').slice(0,10) === dateStr);
+  if(!items.length){ box.innerHTML = `<div class="no-visits">مفيش مواعيد في ${escapeHtml(dateStr)}</div>`; return; }
+  box.innerHTML = `<div class="appt-date-header">${escapeHtml(dateStr)}</div>` + items.map(a => buildAppointmentItemHtml(a)).join('');
+  wireAppointmentItemButtons(box);
+}
+
+function renderAppointmentsFullList(){
+  const box = $('appointmentsFullList');
+  if(!appointmentsData.length){ box.innerHTML = '<div class="no-visits">لسه مفيش مواعيد مسجلة</div>'; return; }
+  const grouped = {}; const order = [];
+  appointmentsData.forEach(a=>{
+    const d = String(a.AppointmentDate || '').slice(0,10) || 'بدون تاريخ';
+    if(!grouped[d]){ grouped[d] = []; order.push(d); }
+    grouped[d].push(a);
+  });
+  let html = '';
+  order.forEach(d=>{
+    html += `<div class="appt-date-header">${escapeHtml(d)}</div>`;
+    grouped[d].forEach(a => { html += buildAppointmentItemHtml(a); });
+  });
+  box.innerHTML = html;
+  wireAppointmentItemButtons(box);
+}
+
+function startEditAppointment(appt){
+  editingAppointmentId = appt.id;
+  $('apptDate').value = String(appt.AppointmentDate || '').slice(0,10);
+  $('apptTime').value = appt.AppointmentTime || '';
+  $('apptTypeSelect').value = '';
+  $('apptSubject').value = appt.Subject || '';
+  $('saveAppointmentBtn').textContent = 'حفظ التعديل';
+  $('newAppointmentForm').classList.add('open');
+  $('newAppointmentForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+async function deleteAppointmentEntry(id){
+  if(!confirm('حذف هذا الموعد نهائيًا؟')) return;
+  const isTemp = String(id).startsWith('tempa_');
+  if(isTemp){
+    appointmentsData = appointmentsData.filter(a => a.id !== id);
+    setCachedAppointments(appointmentsData);
+    renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge();
+    const q = getWriteQueue().filter(item => item.tempId !== id);
+    localStorage.setItem('writeQueue', JSON.stringify(q));
+    return;
+  }
+  if(navigator.onLine === false){
+    appointmentsData = appointmentsData.filter(a => a.id !== id);
+    setCachedAppointments(appointmentsData);
+    renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge();
+    addToWriteQueue({ type:'deleteAppointment', appointmentId: id });
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    return;
+  }
+  try{
+    await deleteDoc(doc(db, "appointments", id));
+    showToast('اتحذف الموعد ✓');
+    await loadAppointments();
+  }catch(err){
+    appointmentsData = appointmentsData.filter(a => a.id !== id);
+    setCachedAppointments(appointmentsData);
+    renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge();
+    addToWriteQueue({ type:'deleteAppointment', appointmentId: id });
+    showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+}
+
+$('toggleAddAppointmentBtn').onclick = ()=>{
+  editingAppointmentId = null;
+  $('saveAppointmentBtn').textContent = 'حفظ الموعد';
+  $('apptDate').value = calSelectedDateStr || new Date().toISOString().slice(0,10);
+  $('apptTime').value = '';
+  $('apptTypeSelect').value = '';
+  $('apptSubject').value = '';
+  $('newAppointmentForm').classList.add('open');
+};
+$('apptTypeSelect').addEventListener('change', ()=>{
+  if($('apptTypeSelect').value) $('apptSubject').value = $('apptTypeSelect').value;
+});
+$('cancelAppointmentBtn').onclick = ()=>{
+  editingAppointmentId = null;
+  $('saveAppointmentBtn').textContent = 'حفظ الموعد';
+  $('newAppointmentForm').classList.remove('open');
+};
+
+$('saveAppointmentBtn').onclick = async ()=>{
+  const date = $('apptDate').value;
+  const subject = $('apptSubject').value.trim();
+  if(!date){ showToast('اختار تاريخ الموعد', true); return; }
+  if(!subject){ showToast('اكتب موضوع الموعد', true); return; }
+  const data = { AppointmentDate: date, AppointmentTime: $('apptTime').value, Subject: subject };
+  const isEditing = !!editingAppointmentId;
+  const btn = $('saveAppointmentBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+
+  const finishUi = ()=>{ editingAppointmentId = null; $('newAppointmentForm').classList.remove('open'); btn.disabled = false; btn.textContent = 'حفظ الموعد'; };
+
+  if(navigator.onLine === false){
+    if(isEditing){
+      const idx = appointmentsData.findIndex(a => a.id === editingAppointmentId);
+      if(idx !== -1) appointmentsData[idx] = { ...appointmentsData[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateAppointment', appointmentId: editingAppointmentId, data });
+    } else {
+      const tempId = 'tempa_' + Date.now();
+      appointmentsData.push({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addAppointment', data, tempId });
+    }
+    setCachedAppointments(appointmentsData);
+    renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge();
+    showToast('النت مقطوع - اتحفظ الموعد مؤقتًا وهيتزامن تلقائي', true);
+    finishUi();
+    return;
+  }
+  try{
+    if(isEditing){
+      await updateDoc(doc(db, "appointments", editingAppointmentId), data);
+    } else {
+      await addDoc(collection(db, "appointments"), { ...data, CreatedAt: serverTimestamp() });
+    }
+    showToast(isEditing ? 'اتحدّث الموعد ✓' : 'اتسجل الموعد ✓');
+    await loadAppointments();
+  }catch(err){
+    if(isEditing){
+      const idx = appointmentsData.findIndex(a => a.id === editingAppointmentId);
+      if(idx !== -1) appointmentsData[idx] = { ...appointmentsData[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateAppointment', appointmentId: editingAppointmentId, data });
+    } else {
+      const tempId = 'tempa_' + Date.now();
+      appointmentsData.push({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addAppointment', data, tempId });
+    }
+    setCachedAppointments(appointmentsData);
+    renderCalendarGrid(); renderAppointmentsFullList(); updateCalendarBadge();
+    showToast('حصل خطأ في الاتصال - اتحفظ الموعد مؤقتًا', true);
+  }
+  finishUi();
+};
+
+document.querySelectorAll('[data-cal-view]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('[data-cal-view]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const view = btn.dataset.calView;
+    $('calendarGridView').style.display = view === 'calendar' ? 'block' : 'none';
+    $('calendarListView').style.display = view === 'list' ? 'block' : 'none';
+  });
+});
+$('calPrevMonthBtn').onclick = ()=>{
+  calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()-1, 1);
+  renderCalendarGrid();
+};
+$('calNextMonthBtn').onclick = ()=>{
+  calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()+1, 1);
+  renderCalendarGrid();
+};
+
+$('viewCalendarBtn').onclick = ()=>{
+  $('listView').style.display = 'none';
+  $('workspace').style.display = 'none';
+  $('calendarView').style.display = 'block';
+  loadAppointments();
+};
+$('closeCalendarViewBtn').onclick = ()=>{
+  $('calendarView').style.display = 'none';
+  $('listView').style.display = 'block';
+  loadPatientsList();
+};
+
+/* ---------- ودجت حجز ميعاد سريع جوه ملف المريض ---------- */
+$('bookApptTypeSelect').addEventListener('change', ()=>{
+  if($('bookApptTypeSelect').value) $('bookApptType').value = $('bookApptTypeSelect').value;
+});
+$('bookApptSaveBtn').onclick = async ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
+  const date = $('bookApptDate').value;
+  const type = $('bookApptType').value.trim();
+  if(!date){ showToast('حدد تاريخ الميعاد الأول', true); return; }
+  if(!type){ showToast('اكتب أو اختار نوع الميعاد', true); return; }
+  const patientName = $('fName').value.trim() || 'مريض';
+  const data = { AppointmentDate: date, AppointmentTime: '', Subject: type + ' - ' + patientName, PatientID: currentPatientId };
+  const btn = $('bookApptSaveBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+
+  if(navigator.onLine === false){
+    const tempId = 'tempa_' + Date.now();
+    addToWriteQueue({ type:'addAppointment', data, tempId });
+    showToast('النت مقطوع - اتحفظ الميعاد مؤقتًا وهيتزامن تلقائي', true);
+    $('bookApptDate').value = ''; $('bookApptTypeSelect').value = ''; $('bookApptType').value = '';
+    btn.disabled = false; btn.textContent = orig;
+    return;
+  }
+  try{
+    await addDoc(collection(db, "appointments"), { ...data, CreatedAt: serverTimestamp() });
+    showToast('اتحفظ الميعاد في الكالندر ✓');
+    $('bookApptDate').value = ''; $('bookApptTypeSelect').value = ''; $('bookApptType').value = '';
+  }catch(err){
+    const tempId = 'tempa_' + Date.now();
+    addToWriteQueue({ type:'addAppointment', data, tempId });
+    showToast('حصل خطأ في الاتصال - اتحفظ مؤقتًا', true);
+  }
+  btn.disabled = false; btn.textContent = orig;
+};
+
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
 window.addEventListener('offline', ()=>{
   showOfflineBadge();
@@ -2517,6 +2958,7 @@ function initApp(){
   flushWriteQueue();
   populateOperationDropdowns();
   tryFetchListsRemote();
+  loadAppointments();
 }
 
 /* ---------- تسجيل الـ Service Worker (يخلي الموقع نفسه يفتح من غير نت) ---------- */
