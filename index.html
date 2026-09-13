@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --teal:#2C6E63; --teal-dark:#1F4A40; --bg:#F7F4EC; --card:#FFFFFF;
@@ -83,6 +85,45 @@
   .img-thumb img{width:100%; height:100%; object-fit:cover;}
   .img-date{font-size:11px; color:var(--muted); text-align:center; margin-top:5px;}
   .img-delete-btn{width:100%; margin-top:4px; padding:5px; font-size:11px;}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    padding:7px 14px;border-radius:999px;border:1px solid var(--line);
+    background:#FCFBF8;font-size:13.5px;font-weight:700;color:var(--muted);
+    transition:all .15s ease; user-select:none; cursor:pointer;
+  }
+  .chip:hover{border-color:var(--teal);}
+  .chip.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .chip.active .chip-remove{margin-right:6px;font-weight:900;opacity:.85;cursor:pointer;}
+  .chip.active .chip-remove:hover{opacity:1;}
+
+  .dropdown-add-select{
+    width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);
+    font-family:'Tajawal';font-size:14px;background:#FCFBF8;outline:none;color:var(--ink);
+  }
+  .dropdown-add-select:focus{border-color:var(--teal);}
+
+  .rx-med-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+  .rx-med-row input{
+    width:100%;padding:9px 10px;border-radius:9px;border:1px solid var(--line);
+    font-family:'Tajawal';font-size:13.5px;background:#FCFBF8;outline:none;color:#1450C4;
+  }
+  @media (max-width:480px){.rx-med-row{grid-template-columns:1fr;}}
+
+  .autocomplete-wrap{position:relative;}
+  .autocomplete-list{
+    position:absolute;top:100%;right:0;left:0;margin-top:2px;background:#fff;
+    border:1px solid var(--line);border-radius:10px;max-height:180px;overflow-y:auto;
+    z-index:60;box-shadow:var(--shadow);display:none;
+  }
+  .autocomplete-item{padding:9px 12px;cursor:pointer;font-size:13.5px;font-family:'Tajawal';}
+  .autocomplete-item:hover{background:#F6F3EC;}
+
+  .history-icons{display:flex;flex-wrap:wrap;gap:14px;}
+  .history-icon-card{width:88px;text-align:center;cursor:pointer;}
+  .history-icon-card .icon-box{width:68px;height:68px;margin:0 auto 6px;background:#fff;border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;transition:border-color .15s ease, transform .1s ease;box-shadow:var(--shadow);}
+  .history-icon-card:hover .icon-box{border-color:var(--teal);transform:translateY(-2px);}
+  .history-icon-card .icon-date{font-size:11.5px;color:var(--muted);font-weight:700;}
 </style>
 </head>
 <body>
@@ -107,6 +148,10 @@
 
 <header>
   <span class="offline-badge" id="offlineBadge">📡 أوفلاين - بيانات محفوظة</span>
+  <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); cursor:pointer;" title="استخدم صورة الشعار المرفوعة على درايف بدل الورقة البيضاء في كل ملفات PDF">
+    <input type="checkbox" id="useLetterheadToggle" style="width:15px;height:15px;">
+    استخدام الشعار
+  </label>
   <button class="btn btn-primary" id="newPatientBtn">+ مريض جديد</button>
   <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   <div class="brand">
@@ -138,6 +183,9 @@
         <button class="tab-btn" data-tab="tab-kashf">الكشف والزيارات</button>
         <button class="tab-btn" data-tab="tab-operations">العمليات</button>
         <button class="tab-btn" data-tab="tab-images">الصور</button>
+        <button class="tab-btn" data-tab="tab-rx">الروشتة</button>
+        <button class="tab-btn" data-tab="tab-physio">العلاج الطبيعي</button>
+        <button class="tab-btn" data-tab="tab-reports">التقارير الطبية</button>
       </div>
 
       <div class="tab-panel active" id="tab-basic">
@@ -304,9 +352,172 @@
           <div id="imagesGrid" class="images-grid"></div>
         </div>
       </div>
+
+      <div class="tab-panel" id="tab-rx">
+        <div class="exam-card">
+          <h2>روشتات جاهزة</h2>
+          <div class="hint">دوس على أي روشتة تحت وهتتحمّل PDF فورًا باسم المريض وتاريخ اليوم</div>
+          <div class="chips" id="presetRxList"></div>
+        </div>
+
+        <div class="exam-card">
+          <h2>الروشتة</h2>
+          <div class="hint">الاسم وتاريخ اليوم بيتحطوا في الروشتة تلقائي - اختار من القوائم تحت</div>
+
+          <div class="field">
+            <label>التشخيص</label>
+            <textarea id="rxDiagnosis" style="min-height:70px;" placeholder="التشخيص..."></textarea>
+          </div>
+
+          <div class="field">
+            <label>الأدوية (حتى 7)</label>
+            <div id="rxMedicines"></div>
+          </div>
+
+          <div class="field">
+            <label>توصيات حسب التشخيص</label>
+            <div class="hint" style="margin-bottom:8px;">دوس على تشخيص وهتتكتب كل توصياته تلقائي تحت</div>
+            <div class="chips" id="diagnosisRecsList"></div>
+          </div>
+
+          <div class="field">
+            <label>التوصيات العامة</label>
+            <select id="rxRecommendationsSelect" class="dropdown-add-select"></select>
+            <div class="chips" id="rxRecommendations" style="margin-top:8px;"></div>
+          </div>
+
+          <div class="field">
+            <label>الأشعة المطلوبة</label>
+            <div class="hint" style="margin-bottom:6px;">اكتب بحرية أو اختار من القايمة عشان تضاف كسطر جديد</div>
+            <select id="rxRadiologyReqSelect" class="dropdown-add-select"></select>
+            <textarea id="rxRadiologyReq" style="min-height:80px; margin-top:8px;" placeholder="الأشعة المطلوبة..."></textarea>
+          </div>
+
+          <div class="field">
+            <label>التحاليل المطلوبة</label>
+            <div class="hint" style="margin-bottom:6px;">اكتب بحرية أو اختار من القايمة عشان تضاف كسطر جديد</div>
+            <select id="rxLabsReqSelect" class="dropdown-add-select"></select>
+            <textarea id="rxLabsReq" style="min-height:80px; margin-top:8px;" placeholder="التحاليل المطلوبة..."></textarea>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-primary" id="saveRxBtn">حفظ الروشتة</button>
+            <button class="btn btn-primary" id="downloadRxBtn">تحميل الروشتة PDF</button>
+          </div>
+        </div>
+
+        <div class="exam-card">
+          <h2 style="margin:0 0 14px;">هستوري الروشتات</h2>
+          <div id="rxHistoryList"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-physio">
+        <div class="exam-card">
+          <h2>العلاج الطبيعي</h2>
+          <div class="hint">الاسم وتاريخ اليوم بيتحطوا تلقائي فوق الروشتة</div>
+
+          <div class="field">
+            <label>التشخيص</label>
+            <textarea id="ptDiagnosis" style="min-height:70px;" placeholder="التشخيص..."></textarea>
+          </div>
+
+          <div class="field">
+            <label>المطلوب من العلاج الطبيعي</label>
+            <div class="chips" id="ptInterventions"></div>
+          </div>
+
+          <div class="field" style="max-width:220px;">
+            <label>عدد الجلسات</label>
+            <input type="text" id="ptSessions" placeholder="مثال: 10 جلسات">
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-primary" id="savePhysioBtn">حفظ</button>
+            <button class="btn btn-primary" id="downloadPhysioBtn">تحميل روشتة العلاج الطبيعي PDF</button>
+          </div>
+        </div>
+
+        <div class="exam-card">
+          <h2 style="margin:0 0 14px;">هستوري العلاج الطبيعي</h2>
+          <div id="physioHistoryList"></div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-reports">
+        <div class="exam-card">
+          <h2>التقارير الطبية</h2>
+          <div class="hint">الاسم وتاريخ اليوم بيتحطوا تلقائي فوق التقرير</div>
+
+          <div class="field">
+            <label>تقارير جاهزة</label>
+            <div class="hint" style="margin-bottom:8px;">دوس على عنوان وهيتضاف نصه في التقرير تحت</div>
+            <div class="chips" id="presetReportsList"></div>
+          </div>
+
+          <div class="field">
+            <label>نوع التقرير</label>
+            <select id="reportType" class="dropdown-add-select">
+              <option value="تقرير طبي عام">تقرير طبي عام</option>
+              <option value="إجازة مرضية">إجازة مرضية</option>
+              <option value="تقرير للتأمين">تقرير للتأمين</option>
+              <option value="تحويل لطبيب آخر">تحويل لطبيب آخر</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>جمل جاهزة للتقرير</label>
+            <select id="reportPhraseSelect" class="dropdown-add-select"></select>
+          </div>
+
+          <div class="field">
+            <label>نص التقرير</label>
+            <textarea id="reportBody" style="min-height:220px;" placeholder="اكتب نص التقرير هنا..."></textarea>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-primary" id="saveReportBtn">حفظ</button>
+            <button class="btn btn-primary" id="downloadReportBtn">تحميل التقرير PDF</button>
+          </div>
+        </div>
+
+        <div class="exam-card">
+          <h2 style="margin:0 0 14px;">هستوري التقارير</h2>
+          <div id="reportHistoryList"></div>
+        </div>
+      </div>
     </div>
   </div>
 </main>
+
+<div id="historyDetailModal" style="display:none; position:fixed; inset:0; background:rgba(31,74,64,.45); z-index:200; align-items:center; justify-content:center; padding:20px;">
+  <div class="card" style="max-width:520px; width:100%; max-height:85vh; overflow-y:auto; position:relative;">
+    <button id="closeHistoryDetailBtn" class="btn btn-ghost" style="position:absolute; top:14px; left:14px; padding:6px 12px;">✕</button>
+    <div id="historyDetailTitle" class="visit-date" style="margin-bottom:16px; font-size:15px;"></div>
+    <div id="historyDetailContent"></div>
+    <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="editHistoryBtn">تعديل</button>
+      <button class="btn btn-outline-red" id="deleteHistoryBtn">حذف</button>
+      <button class="btn btn-primary" id="downloadHistoryPdfBtn">تحميل PDF</button>
+    </div>
+  </div>
+</div>
+
+<div id="rxTemplate" style="position:fixed; left:-9999px; top:0; width:420px; background:#ffffff; padding:36px 32px; font-family:'Tajawal', sans-serif; color:#1c2420; direction:rtl; font-size:10pt; line-height:1;">
+  <img class="rx-letterhead-img" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; z-index:0;">
+  <div class="rx-header-spacer" style="height:70px; position:relative; z-index:1;"></div>
+  <div class="rx-header-line" style="border-top:2.5px solid #1F4A40; border-bottom:1px solid #e2ddce; padding:12px 2px; display:flex; justify-content:space-between; font-weight:700; margin-bottom:26px; font-size:12pt; position:relative; z-index:1;">
+    <div><span class="rx-name" style="font-weight:500;"></span></div>
+    <div><span class="rx-date" style="font-weight:500;"></span></div>
+  </div>
+  <div class="rx-body" style="min-height:120px; position:relative; z-index:1;"></div>
+  <div style="margin-top:60px; display:flex; justify-content:space-between; align-items:flex-end; position:relative; z-index:1;">
+    <img class="rx-qrcode" style="width:70px; height:70px; display:none;">
+    <div style="text-align:center; color:#555;">
+      <div style="width:150px; border-top:1px solid #999; padding-top:6px;">توقيع الطبيب</div>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -416,6 +627,89 @@ function resizeImageFile(file, maxDim){
   });
 }
 
+/* ---------- قوايم الروشتة/العلاج الطبيعي/التقارير - افتراضية، وبتتحدث من الشيت القديم لو الجسر متاح ---------- */
+let MEDICINES_LIST = [
+  { name: 'باراسيتامول', instructions: '', duration: '', diagnosis: '' },
+  { name: 'أوميبرازول', instructions: '', duration: '', diagnosis: '' }
+];
+let RECOMMENDATIONS_LIST = ['الراحة التامة', 'شرب سوائل بكثرة'];
+let RADIOLOGY_LIST = ['أشعة عادية', 'سونار'];
+let LABS_LIST = ['صورة دم كاملة (CBC)'];
+let PT_LIST = ['تقوية عضلية (Muscle Strengthening)', 'تمارين إطالة (Stretching)'];
+let ADMINISTRATION_LIST = ['مرة يوميًا', 'مرتين يوميًا', 'عند اللزوم'];
+let REPORT_PHRASES_LIST = [];
+let PRESET_PRESCRIPTIONS = [];
+let PRESET_REPORTS = [];
+let DIAGNOSIS_RECS = [];
+
+/* بتحاول تجيب القوايم الحقيقية من الشيت القديم لو فيه بيانات دخول محفوظة بالفعل -
+   من غير ما تفتح أي مربع تسجيل دخول لوحدها (ده بيحصل بس أول مرة تستخدم فيها تاب الصور) */
+async function tryFetchListsRemote(){
+  if(!getAppsScriptCreds()) return;
+  try{
+    const token = await ensureAppsScriptLogin();
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=getLists&token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if(data.error) return;
+    if(data.medicines && data.medicines.length) MEDICINES_LIST = data.medicines;
+    if(data.recommendations && data.recommendations.length) RECOMMENDATIONS_LIST = data.recommendations;
+    if(data.radiology && data.radiology.length) RADIOLOGY_LIST = data.radiology;
+    if(data.labs && data.labs.length) LABS_LIST = data.labs;
+    if(data.physio && data.physio.length) PT_LIST = data.physio;
+    if(data.administration && data.administration.length) ADMINISTRATION_LIST = data.administration;
+    if(data.reportPhrases && data.reportPhrases.length) REPORT_PHRASES_LIST = data.reportPhrases;
+    if(data.presets) PRESET_PRESCRIPTIONS = data.presets;
+    if(data.presetReports) PRESET_REPORTS = data.presetReports;
+    if(data.diagnosisRecs) DIAGNOSIS_RECS = data.diagnosisRecs;
+    if(data.operationLocations && data.operationLocations.length){ OPERATION_LOCATIONS.length = 0; OPERATION_LOCATIONS.push(...data.operationLocations); }
+    if(data.dressingTypes && data.dressingTypes.length){ DRESSING_TYPES.length = 0; DRESSING_TYPES.push(...data.dressingTypes); }
+    refreshAllListUi();
+  }catch(err){ /* هنستخدم القوايم الافتراضية عادي */ }
+}
+
+function refreshAllListUi(){
+  populateOperationDropdowns();
+  buildMedicineRows();
+  renderDropdownAdd('rxRecommendationsSelect', 'rxRecommendations', RECOMMENDATIONS_LIST);
+  renderDropdownAppendToTextarea('rxRadiologyReqSelect', 'rxRadiologyReq', RADIOLOGY_LIST);
+  renderDropdownAppendToTextarea('rxLabsReqSelect', 'rxLabsReq', LABS_LIST);
+  renderChips('ptInterventions', PT_LIST);
+  renderPresetRxList();
+  renderDiagnosisRecsList();
+  renderPresetReportsList();
+  renderReportPhraseSelect();
+}
+
+let letterheadImageData = null;
+let letterheadFetchAttempted = false;
+let letterheadRatio = null;
+async function ensureLetterheadLoaded(){
+  if(letterheadImageData || letterheadFetchAttempted) return;
+  letterheadFetchAttempted = true;
+  try{
+    const token = await ensureAppsScriptLogin();
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=getLetterheadImage&token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if(data.success){
+      await new Promise((resolve)=>{
+        const img = new Image();
+        img.onload = ()=>{ letterheadRatio = img.naturalWidth / img.naturalHeight; resolve(); };
+        img.onerror = resolve;
+        img.src = data.dataUrl;
+      });
+      letterheadImageData = data.dataUrl;
+    }
+  }catch(err){ /* تجاهل - هيتحمل من غير شعار */ }
+}
+$('useLetterheadToggle').addEventListener('change', ()=>{
+  localStorage.setItem('useLetterhead', $('useLetterheadToggle').checked ? '1' : '0');
+  letterheadFetchAttempted = false;
+  if($('useLetterheadToggle').checked) ensureLetterheadLoaded();
+});
+if(localStorage.getItem('useLetterhead') === '1'){
+  $('useLetterheadToggle').checked = true;
+}
+
 function fillSelectOptions(selectId, options){
   const el = $(selectId);
   el.innerHTML = '<option value="">— اختار —</option>' + options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
@@ -426,6 +720,180 @@ function populateOperationDropdowns(){
   fillSelectOptions('opDressing2', DRESSING_TYPES);
   fillSelectOptions('opDressing3', DRESSING_TYPES);
 }
+
+/* ---------- Chips / Autocomplete / قوايم منسدلة تضيف بنود ---------- */
+function getActiveChips(containerId){
+  return Array.from($(containerId).querySelectorAll('.chip.active')).map(c => c.dataset.value);
+}
+function setActiveChips(containerId, values){
+  const selected = values || [];
+  const hasDropdown = document.getElementById(containerId + 'Select');
+  if(hasDropdown){
+    $(containerId).innerHTML = '';
+    selected.forEach(v => addChipTag(containerId, v));
+  } else {
+    $(containerId).querySelectorAll('.chip').forEach(chip=>{
+      chip.classList.toggle('active', selected.includes(chip.dataset.value));
+    });
+  }
+}
+function renderChips(containerId, list){
+  const box = $(containerId);
+  const selected = getActiveChips(containerId);
+  box.innerHTML = list.map(item => `<div class="chip" data-value="${escapeHtml(item)}">${escapeHtml(item)}</div>`).join('');
+  box.querySelectorAll('.chip').forEach(chip=>{
+    if(selected.includes(chip.dataset.value)) chip.classList.add('active');
+    chip.addEventListener('click', ()=> chip.classList.toggle('active'));
+  });
+}
+function addChipTag(containerId, value){
+  const box = $(containerId);
+  if(!value) return;
+  if(Array.from(box.querySelectorAll('.chip')).some(c => c.dataset.value === value)) return;
+  const chip = document.createElement('div');
+  chip.className = 'chip active';
+  chip.dataset.value = value;
+  chip.innerHTML = `${escapeHtml(value)}<span class="chip-remove">×</span>`;
+  chip.querySelector('.chip-remove').addEventListener('click', ()=> chip.remove());
+  box.appendChild(chip);
+}
+function renderDropdownAdd(selectId, containerId, list){
+  const select = $(selectId);
+  select.innerHTML = `<option value="">— اختر —</option>` + list.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('');
+  select.onchange = ()=>{ addChipTag(containerId, select.value); select.value = ''; };
+}
+function renderDropdownAppendToTextarea(selectId, textareaId, list){
+  const select = $(selectId);
+  select.innerHTML = `<option value="">— اختر —</option>` + list.map(item => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join('');
+  select.onchange = ()=>{
+    if(!select.value) return;
+    const ta = $(textareaId);
+    ta.value = ta.value.trim() ? (ta.value.replace(/\n+$/,'') + '\n' + select.value) : select.value;
+    select.value = '';
+  };
+}
+
+/* قايمة اقتراحات مبنية يدويًا - عشان datalist مش شغالة كويس على سفاري آيباد/آيفون */
+function attachAutocomplete(input, getOptions){
+  let wrap = input.parentElement;
+  if(!wrap.classList.contains('autocomplete-wrap')){
+    wrap = document.createElement('div');
+    wrap.className = 'autocomplete-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+  }
+  let list = wrap.querySelector('.autocomplete-list');
+  if(!list){
+    list = document.createElement('div');
+    list.className = 'autocomplete-list';
+    wrap.appendChild(list);
+  }
+  function showList(){
+    const q = input.value.trim().toLowerCase();
+    const options = getOptions();
+    const matches = q ? options.filter(o => o.toLowerCase().includes(q)) : options;
+    if(!matches.length){ list.style.display = 'none'; return; }
+    list.innerHTML = matches.map(o => `<div class="autocomplete-item">${escapeHtml(o)}</div>`).join('');
+    list.style.display = 'block';
+    list.querySelectorAll('.autocomplete-item').forEach(item=>{
+      item.addEventListener('mousedown', (e)=>{
+        e.preventDefault();
+        input.value = item.textContent;
+        list.style.display = 'none';
+        input.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+    });
+  }
+  input.addEventListener('focus', showList);
+  input.addEventListener('input', showList);
+  input.addEventListener('blur', ()=> setTimeout(()=> list.style.display = 'none', 150));
+}
+
+function buildMedicineRows(){
+  const box = $('rxMedicines');
+  const prevValues = Array.from(document.querySelectorAll('.rx-med-select')).map(s => s.value);
+  const prevInstr = Array.from(document.querySelectorAll('.rx-med-instructions')).map(i => i.value);
+  box.innerHTML = '';
+  for(let i = 0; i < 7; i++){
+    const row = document.createElement('div');
+    row.className = 'rx-med-row';
+    row.innerHTML = `
+      <input type="text" class="rx-med-select" data-idx="${i}" placeholder="اختر دواء أو اكتب اسم جديد..." autocomplete="off">
+      <input type="text" class="rx-med-instructions" data-idx="${i}" placeholder="طريقة الإعطاء - اختار أو اكتب..." autocomplete="off">
+    `;
+    box.appendChild(row);
+    if(prevValues[i]) row.querySelector('.rx-med-select').value = prevValues[i];
+    if(prevInstr[i]) row.querySelector('.rx-med-instructions').value = prevInstr[i];
+
+    const medInput = row.querySelector('.rx-med-select');
+    const instrInput = row.querySelector('.rx-med-instructions');
+    attachAutocomplete(medInput, () => MEDICINES_LIST.map(m => m.name));
+    attachAutocomplete(instrInput, () => ADMINISTRATION_LIST);
+    medInput.addEventListener('change', (e)=>{
+      const med = MEDICINES_LIST.find(m => m.name === e.target.value);
+      if(med && med.instructions && !instrInput.value) instrInput.value = med.instructions;
+      if(med && med.diagnosis && !$('rxDiagnosis').value.trim()) $('rxDiagnosis').value = med.diagnosis;
+    });
+  }
+}
+
+function renderPresetRxList(){
+  const box = $('presetRxList');
+  if(!PRESET_PRESCRIPTIONS.length){ box.innerHTML = '<div style="color:#aaa; font-size:13px;">لسه مفيش روشتات جاهزة</div>'; return; }
+  box.innerHTML = PRESET_PRESCRIPTIONS.map((p,i) => `<div class="chip" data-idx="${i}">${escapeHtml(p.name)}</div>`).join('');
+  box.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', async ()=>{
+      if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
+      const preset = PRESET_PRESCRIPTIONS[chip.dataset.idx];
+      const bodyHtml = preset.medicines.map((m,i) => `<div style="margin-bottom:4px;">${i+1}. ${escapeHtml(m)}</div>`).join('');
+      await exportRxTemplateAsPdf(bodyHtml, 'روشتة-' + preset.name, chip);
+    });
+  });
+}
+function renderDiagnosisRecsList(){
+  const box = $('diagnosisRecsList');
+  if(!DIAGNOSIS_RECS.length){ box.innerHTML = '<div style="color:#aaa; font-size:13px;">لسه مفيش توصيات مربوطة بتشخيص</div>'; return; }
+  box.innerHTML = DIAGNOSIS_RECS.map((d,i) => `<div class="chip" data-idx="${i}">${escapeHtml(d.diagnosis)}</div>`).join('');
+  box.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const entry = DIAGNOSIS_RECS[chip.dataset.idx];
+      entry.recommendations.forEach(r => addChipTag('rxRecommendations', r));
+      if(!$('rxDiagnosis').value.trim()) $('rxDiagnosis').value = entry.diagnosis;
+    });
+  });
+}
+function renderPresetReportsList(){
+  const box = $('presetReportsList');
+  if(!PRESET_REPORTS.length){ box.innerHTML = '<div style="color:#aaa; font-size:13px;">لسه مفيش تقارير جاهزة</div>'; return; }
+  box.innerHTML = PRESET_REPORTS.map((r,i) => `<div class="chip" data-idx="${i}">${escapeHtml(r.title)}</div>`).join('');
+  box.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      const entry = PRESET_REPORTS[chip.dataset.idx];
+      const current = $('reportBody').value;
+      $('reportBody').value = current ? (current + '\n' + entry.text) : entry.text;
+    });
+  });
+}
+function renderReportPhraseSelect(){
+  const select = $('reportPhraseSelect');
+  select.innerHTML = `<option value="">— أضف جملة —</option>` + REPORT_PHRASES_LIST.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+  select.onchange = ()=>{
+    if(!select.value) return;
+    const current = $('reportBody').value;
+    $('reportBody').value = current ? (current + '\n' + select.value) : select.value;
+    select.value = '';
+  };
+}
+
+buildMedicineRows();
+renderDropdownAdd('rxRecommendationsSelect', 'rxRecommendations', RECOMMENDATIONS_LIST);
+renderDropdownAppendToTextarea('rxRadiologyReqSelect', 'rxRadiologyReq', RADIOLOGY_LIST);
+renderDropdownAppendToTextarea('rxLabsReqSelect', 'rxLabsReq', LABS_LIST);
+renderChips('ptInterventions', PT_LIST);
+renderPresetRxList();
+renderDiagnosisRecsList();
+renderPresetReportsList();
+renderReportPhraseSelect();
 
 /* ====== إعدادات Firebase بتاعتك ====== */
 const firebaseConfig = {
@@ -520,6 +988,15 @@ async function flushWriteQueue(){
       } else if(item.type === 'deleteOperation'){
         await deleteDoc(doc(db, "patients", item.patientId, "operations", item.operationId));
         touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'addHistory'){
+        await addDoc(collection(db, "patients", item.patientId, "history"), { ...item.data, CreatedAt: serverTimestamp() });
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'updateHistory'){
+        await updateDoc(doc(db, "patients", item.patientId, "history", item.historyId), item.data);
+        touchedPatientIds.add(item.patientId);
+      } else if(item.type === 'deleteHistory'){
+        await deleteDoc(doc(db, "patients", item.patientId, "history", item.historyId));
+        touchedPatientIds.add(item.patientId);
       }
     }catch(err){ remaining.push(item); }
   }
@@ -530,6 +1007,7 @@ async function flushWriteQueue(){
     if(currentPatientId && touchedPatientIds.has(currentPatientId)){
       await loadVisits(currentPatientId);
       await loadOperations(currentPatientId);
+      await loadHistory(currentPatientId);
     }
   }
 }
@@ -648,6 +1126,8 @@ function openPatient(id){
   const p = allPatients.find(x => x.id === id);
   if(!p) return;
   currentPatientId = id;
+  editingHistoryId = null;
+  editingHistoryType = null;
   $('folderTitle').textContent = p.Name || 'ملف مريض';
   $('fName').value = p.Name || '';
   $('fAge').value = p.Age || '';
@@ -675,11 +1155,16 @@ function openPatient(id){
     currentImages = [];
     $('imagesGrid').innerHTML = '<div class="no-visits">لازم يتزامن ملف المريض مع الإنترنت الأول قبل رفع صور</div>';
     $('uploadImageLabel').style.display = 'none';
+    currentHistory = [];
+    resetPrescriptionForm(); resetPhysioForm(); resetReportForm();
+    renderAllHistory();
   } else {
     $('toggleVisitBtn').style.display = 'inline-block';
     loadVisits(id);
     $('toggleOperationBtn').style.display = 'inline-block';
     loadOperations(id);
+    resetPrescriptionForm(); resetPhysioForm(); resetReportForm();
+    loadHistory(id);
     $('uploadImageLabel').style.display = 'inline-flex';
     loadImages(id);
   }
@@ -698,6 +1183,8 @@ function resetToBasicTab(){
 
 $('newPatientBtn').onclick = ()=>{
   currentPatientId = null;
+  editingHistoryId = null;
+  editingHistoryType = null;
   $('folderTitle').textContent = 'ملف جديد';
   $('fName').value = ''; $('fAge').value = ''; $('fPhone').value = '';
   $('fClinicNumber').value = ''; $('fNote').value = ''; $('fRedFlag').checked = false;
@@ -712,6 +1199,9 @@ $('newPatientBtn').onclick = ()=>{
   currentImages = [];
   $('imagesGrid').innerHTML = '<div class="no-visits">احفظ بيانات المريض الأول قبل رفع صور</div>';
   $('uploadImageLabel').style.display = 'none';
+  currentHistory = [];
+  resetPrescriptionForm(); resetPhysioForm(); resetReportForm();
+  renderAllHistory();
   $('deletePatientBtn').style.display = 'none';
   $('listView').style.display = 'none';
   $('workspace').style.display = 'block';
@@ -1307,6 +1797,383 @@ async function deleteImageEntry(imageId){
   }
 }
 
+/* ---------- تجميع/تحميل/تصفير بيانات الروشتة ---------- */
+function collectPrescription(){
+  const medicines = Array.from(document.querySelectorAll('.rx-med-select'))
+    .map((sel, i) => ({ name: sel.value, instructions: document.querySelector(`.rx-med-instructions[data-idx="${i}"]`).value.trim() }))
+    .filter(m => m.name);
+  return {
+    diagnosis: $('rxDiagnosis').value.trim(),
+    medicines,
+    recommendations: getActiveChips('rxRecommendations'),
+    radiologyRequested: $('rxRadiologyReq').value.split('\n').map(s => s.trim()).filter(Boolean),
+    labsRequested: $('rxLabsReq').value.split('\n').map(s => s.trim()).filter(Boolean)
+  };
+}
+function loadPrescription(raw){
+  let rx; try{ rx = raw ? JSON.parse(raw) : null; }catch(e){ rx = null; }
+  rx = rx || { diagnosis:'', medicines:[], recommendations:[], radiologyRequested:[], labsRequested:[] };
+  $('rxDiagnosis').value = rx.diagnosis || '';
+  document.querySelectorAll('.rx-med-select').forEach((sel, i)=>{
+    const m = rx.medicines && rx.medicines[i];
+    sel.value = m ? m.name : '';
+    document.querySelector(`.rx-med-instructions[data-idx="${i}"]`).value = m ? (m.instructions || '') : '';
+  });
+  setActiveChips('rxRecommendations', rx.recommendations);
+  $('rxRadiologyReq').value = (rx.radiologyRequested || []).join('\n');
+  $('rxLabsReq').value = (rx.labsRequested || []).join('\n');
+}
+function resetPrescriptionForm(){
+  $('rxDiagnosis').value = '';
+  document.querySelectorAll('.rx-med-select').forEach(sel => sel.value = '');
+  document.querySelectorAll('.rx-med-instructions').forEach(inp => inp.value = '');
+  setActiveChips('rxRecommendations', []);
+  $('rxRadiologyReq').value = '';
+  $('rxLabsReq').value = '';
+}
+
+function collectPhysio(){
+  return { diagnosis: $('ptDiagnosis').value.trim(), interventions: getActiveChips('ptInterventions'), sessions: $('ptSessions').value.trim() };
+}
+function loadPhysio(raw){
+  let pt; try{ pt = raw ? JSON.parse(raw) : null; }catch(e){ pt = null; }
+  pt = pt || { diagnosis:'', interventions:[], sessions:'' };
+  $('ptDiagnosis').value = pt.diagnosis || '';
+  setActiveChips('ptInterventions', pt.interventions);
+  $('ptSessions').value = pt.sessions || '';
+}
+function resetPhysioForm(){
+  $('ptDiagnosis').value = '';
+  setActiveChips('ptInterventions', []);
+  $('ptSessions').value = '';
+}
+
+function collectReport(){
+  return { type: $('reportType').value, body: $('reportBody').value };
+}
+function loadReport(raw){
+  let rep; try{ rep = raw ? JSON.parse(raw) : null; }catch(e){ rep = null; }
+  rep = rep || { type:'تقرير طبي عام', body:'' };
+  $('reportType').value = rep.type || 'تقرير طبي عام';
+  $('reportBody').value = rep.body || '';
+}
+function resetReportForm(){
+  $('reportType').value = 'تقرير طبي عام';
+  $('reportBody').value = '';
+}
+
+/* ---------- بناء نص PDF من بيانات الروشتة/العلاج الطبيعي/التقرير ---------- */
+function buildRxBodyHtml(rx){
+  const section = (title, innerHtml) => `<div style="margin-bottom:18px;"><div style="font-weight:700; font-size:10pt; color:#1F4A40; margin-bottom:6px;">${title}</div>${innerHtml}</div>`;
+  let html = '';
+  if(rx.diagnosis) html += section('التشخيص', `<div>${escapeHtml(rx.diagnosis)}</div>`);
+  if(rx.medicines.length){
+    html += section('الأدوية', rx.medicines.map((m,i) => `<div style="margin-bottom:4px;">${i+1}. ${escapeHtml(m.name)}${m.instructions ? ' - ' + escapeHtml(m.instructions) : ''}</div>`).join(''));
+  } else {
+    html += section('الأدوية', '<div style="color:#aaa;">لا يوجد أدوية</div>');
+  }
+  if(rx.recommendations.length) html += section('توصيات عامة', rx.recommendations.map(r => `<div>• ${escapeHtml(r)}</div>`).join(''));
+  if(rx.radiologyRequested.length || rx.labsRequested.length){
+    let reqHtml = '';
+    if(rx.radiologyRequested.length) reqHtml += `<div><b>أشعة:</b></div>` + rx.radiologyRequested.map(a => `<div>• ${escapeHtml(a)}</div>`).join('');
+    if(rx.labsRequested.length) reqHtml += `<div><b>تحاليل:</b></div>` + rx.labsRequested.map(t => `<div>• ${escapeHtml(t)}</div>`).join('');
+    html += section('المطلوب', reqHtml);
+  }
+  return html;
+}
+function buildPhysioBodyHtml(pt){
+  const section = (title, innerHtml) => `<div style="margin-bottom:18px;"><div style="font-weight:700; font-size:10pt; color:#1F4A40; margin-bottom:6px;">${title}</div>${innerHtml}</div>`;
+  let html = '';
+  if(pt.diagnosis) html += section('التشخيص', `<div>${escapeHtml(pt.diagnosis)}</div>`);
+  html += section('المطلوب من العلاج الطبيعي', pt.interventions.length ? pt.interventions.map(i => `<div>• ${escapeHtml(i)}</div>`).join('') : '<div style="color:#aaa;">لا يوجد</div>');
+  if(pt.sessions) html += section('عدد الجلسات', `<div>${escapeHtml(pt.sessions)}</div>`);
+  return html;
+}
+function buildReportBodyHtml(rep){
+  return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:10pt; color:#1F4A40; margin-bottom:6px;">${escapeHtml(rep.type || 'تقرير طبي')}</div></div>
+    <div style="white-space:pre-wrap;">${escapeHtml(rep.body || '')}</div>`;
+}
+
+/* ---------- توليد PDF (بشعار اختياري + QR) ---------- */
+async function exportRxTemplateAsPdf(bodyHtml, filenamePrefix, btn, dateOverride){
+  const name = $('fName').value.trim() || '—';
+  const todayStr = dateOverride || new Date().toLocaleDateString('ar-EG', {year:'numeric', month:'long', day:'numeric'});
+  const tpl = $('rxTemplate');
+  const letterheadImg = tpl.querySelector('.rx-letterhead-img');
+  const useLetterhead = $('useLetterheadToggle').checked;
+  let letterheadApplied = false;
+
+  if(useLetterhead){
+    await ensureLetterheadLoaded();
+    if(letterheadImageData && letterheadRatio){
+      letterheadImg.src = letterheadImageData;
+      letterheadImg.style.display = 'block';
+      tpl.style.height = (420 / letterheadRatio) + 'px';
+      tpl.style.padding = '0';
+      tpl.querySelector('.rx-header-spacer').style.height = '100px';
+      tpl.querySelector('.rx-header-line').style.borderTop = 'none';
+      tpl.querySelector('.rx-header-line').style.borderBottom = 'none';
+      tpl.querySelector('.rx-header-line').style.padding = '12px 32px 0';
+      tpl.querySelector('.rx-body').style.padding = '0 32px';
+      letterheadApplied = true;
+    } else {
+      showToast('الشعار مش متاح - هيتحمل من غير شعار', true);
+    }
+  }
+  if(!letterheadApplied){
+    letterheadImg.style.display = 'none';
+    tpl.style.height = 'auto';
+    tpl.style.padding = '36px 32px';
+    tpl.querySelector('.rx-header-spacer').style.height = '70px';
+    tpl.querySelector('.rx-header-line').style.borderTop = '2.5px solid #1F4A40';
+    tpl.querySelector('.rx-header-line').style.borderBottom = '1px solid #e2ddce';
+    tpl.querySelector('.rx-header-line').style.padding = '12px 2px';
+    tpl.querySelector('.rx-body').style.padding = '0';
+  }
+
+  tpl.querySelector('.rx-name').textContent = name;
+  tpl.querySelector('.rx-date').textContent = todayStr;
+  tpl.querySelector('.rx-body').innerHTML = bodyHtml;
+
+  const qrImg = tpl.querySelector('.rx-qrcode');
+  if(currentPatientId && !String(currentPatientId).startsWith('temp_')){
+    const patientUrl = location.origin + location.pathname + '?patient=' + encodeURIComponent(currentPatientId);
+    const qrApiUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + encodeURIComponent(patientUrl);
+    try{
+      await new Promise((resolve)=>{
+        qrImg.onload = resolve; qrImg.onerror = resolve;
+        qrImg.crossOrigin = 'anonymous';
+        qrImg.src = qrApiUrl;
+      });
+      qrImg.style.display = 'block';
+    }catch(err){ qrImg.style.display = 'none'; }
+  } else {
+    qrImg.style.display = 'none';
+  }
+
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري التجهيز...';
+  try{
+    await new Promise(r => requestAnimationFrame(()=> requestAnimationFrame(r)));
+    const canvas = await html2canvas(tpl, {scale:2, backgroundColor:'#ffffff', useCORS:true});
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:'pt', format:'a5'});
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const ratio = canvas.width / canvas.height;
+    let imgWidth = pageWidth;
+    let imgHeight = imgWidth / ratio;
+    if(imgHeight > pageHeight){ imgHeight = pageHeight; imgWidth = imgHeight * ratio; }
+    const x = (pageWidth - imgWidth) / 2;
+    pdf.addImage(imgData, 'JPEG', x, 0, imgWidth, imgHeight);
+    pdf.save(`${filenamePrefix}-${name}${letterheadApplied ? '-بشعار' : ''}.pdf`);
+  }catch(err){ showToast('تعذر إنشاء PDF', true); }
+  finally{ btn.disabled = false; btn.textContent = orig; }
+}
+
+/* ---------- سجل الروشتة/العلاج الطبيعي/التقارير (History) ---------- */
+let currentHistory = [];
+let editingHistoryId = null;
+let editingHistoryType = null;
+let currentHistoryEntry = null;
+
+function getCachedHistory(patientId){
+  try{ return JSON.parse(localStorage.getItem('history_' + patientId) || '[]'); }catch(e){ return []; }
+}
+function setCachedHistory(patientId, list){
+  try{ localStorage.setItem('history_' + patientId, JSON.stringify(list)); }catch(e){}
+}
+
+async function loadHistory(patientId){
+  const cached = getCachedHistory(patientId);
+  if(cached.length){ currentHistory = cached; renderAllHistory(); }
+  if(navigator.onLine === false){ if(!cached.length) renderAllHistory(); return; }
+  try{
+    const snap = await getDocs(query(collection(db, "patients", patientId, "history"), orderBy('HistoryDate', 'desc')));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    currentHistory = list;
+    setCachedHistory(patientId, list);
+    renderAllHistory();
+  }catch(err){ if(!cached.length) renderAllHistory(); }
+}
+
+function renderAllHistory(){
+  renderHistoryIcons('rxHistoryList', currentHistory.filter(h => h.Type === 'rx'), '💊', 'روشتة',
+    content => buildRxBodyHtml(Object.assign({diagnosis:'',medicines:[],recommendations:[],radiologyRequested:[],labsRequested:[]}, content)),
+    'لسه مفيش هستوري روشتات', 'rx');
+  renderHistoryIcons('physioHistoryList', currentHistory.filter(h => h.Type === 'physio'), '🏃', 'علاج طبيعي',
+    content => buildPhysioBodyHtml(Object.assign({diagnosis:'',interventions:[],sessions:''}, content)),
+    'لسه مفيش هستوري علاج طبيعي', 'physio');
+  renderHistoryIcons('reportHistoryList', currentHistory.filter(h => h.Type === 'report'), '📋', 'تقرير',
+    content => buildReportBodyHtml(Object.assign({type:'',body:''}, content)),
+    'لسه مفيش هستوري تقارير', 'report');
+}
+
+function renderHistoryIcons(containerId, entries, icon, labelPrefix, buildBodyHtmlFn, emptyText, type){
+  const box = $(containerId);
+  if(!entries.length){ box.innerHTML = `<div class="no-visits">${emptyText}</div>`; return; }
+  box.innerHTML = `<div class="history-icons">` + entries.map((h,i) => `
+    <div class="history-icon-card" data-idx="${i}">
+      <div class="icon-box">${icon} ${h._pending ? '⏳' : ''}</div>
+      <div class="icon-date">${escapeHtml(String(h.HistoryDate || '').slice(0,10))}</div>
+    </div>`).join('') + `</div>`;
+  box.querySelectorAll('.history-icon-card').forEach(card=>{
+    card.addEventListener('click', ()=> openHistoryDetail(type, entries[card.dataset.idx], labelPrefix, buildBodyHtmlFn));
+  });
+}
+
+function openHistoryDetail(type, entry, labelPrefix, buildBodyHtmlFn){
+  let content = {};
+  try{ content = JSON.parse(entry.Content || '{}'); }catch(e){}
+  currentHistoryEntry = { type, entry, content, buildBodyHtmlFn };
+  $('historyDetailTitle').textContent = labelPrefix + ' - ' + String(entry.HistoryDate || '').slice(0,10);
+  $('historyDetailContent').innerHTML = buildBodyHtmlFn(content);
+  $('historyDetailModal').style.display = 'flex';
+}
+$('closeHistoryDetailBtn').onclick = ()=>{
+  $('historyDetailModal').style.display = 'none';
+  currentHistoryEntry = null;
+};
+
+$('downloadHistoryPdfBtn').onclick = ()=>{
+  if(!currentHistoryEntry) return;
+  const { type, entry, content, buildBodyHtmlFn } = currentHistoryEntry;
+  const bodyHtml = buildBodyHtmlFn(content);
+  const dateStr = String(entry.HistoryDate || '').slice(0,10);
+  const prefix = type === 'rx' ? 'روشتة' : type === 'physio' ? 'علاج-طبيعي' : 'تقرير-طبي';
+  exportRxTemplateAsPdf(bodyHtml, prefix, $('downloadHistoryPdfBtn'), dateStr);
+};
+
+$('editHistoryBtn').onclick = ()=>{
+  if(!currentHistoryEntry) return;
+  const { type, entry } = currentHistoryEntry;
+  editingHistoryId = entry.id;
+  editingHistoryType = type;
+  if(type === 'rx') loadPrescription(entry.Content);
+  else if(type === 'physio') loadPhysio(entry.Content);
+  else if(type === 'report') loadReport(entry.Content);
+  $('historyDetailModal').style.display = 'none';
+  currentHistoryEntry = null;
+  const tabId = type === 'rx' ? 'tab-rx' : type === 'physio' ? 'tab-physio' : 'tab-reports';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
+  $(tabId).classList.add('active');
+  showToast('عدّل البيانات ودوس حفظ عشان تحدّث السجل ده');
+};
+
+$('deleteHistoryBtn').onclick = async ()=>{
+  if(!currentHistoryEntry) return;
+  if(!confirm('حذف هذا السجل نهائيًا؟')) return;
+  const historyId = currentHistoryEntry.entry.id;
+  const isTemp = String(historyId).startsWith('temph_');
+  $('historyDetailModal').style.display = 'none';
+  currentHistoryEntry = null;
+
+  if(isTemp){
+    currentHistory = currentHistory.filter(h => h.id !== historyId);
+    setCachedHistory(currentPatientId, currentHistory);
+    renderAllHistory();
+    const q = getWriteQueue().filter(item => item.tempId !== historyId);
+    localStorage.setItem('writeQueue', JSON.stringify(q));
+    return;
+  }
+  if(navigator.onLine === false){
+    currentHistory = currentHistory.filter(h => h.id !== historyId);
+    setCachedHistory(currentPatientId, currentHistory);
+    renderAllHistory();
+    addToWriteQueue({ type:'deleteHistory', patientId: currentPatientId, historyId });
+    showToast('النت مقطوع - الحذف هيتم تلقائي أول ما النت يرجع', true);
+    return;
+  }
+  try{
+    await deleteDoc(doc(db, "patients", currentPatientId, "history", historyId));
+    showToast('اتحذف السجل ✓');
+    await loadHistory(currentPatientId);
+  }catch(err){
+    currentHistory = currentHistory.filter(h => h.id !== historyId);
+    setCachedHistory(currentPatientId, currentHistory);
+    renderAllHistory();
+    addToWriteQueue({ type:'deleteHistory', patientId: currentPatientId, historyId });
+    showToast('حصل خطأ في الاتصال - الحذف هيتم تلقائي أول ما النت يرجع', true);
+  }
+};
+
+/* ---------- حفظ الروشتة/العلاج الطبيعي/التقرير كسجل هستوري جديد أو تحديث سجل قائم ---------- */
+async function saveHistoryEntry(btn, historyType, collectFn){
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){
+    showToast('احفظ بيانات المريض الأول من تاب البيانات الأساسية', true);
+    return;
+  }
+  const content = collectFn();
+  const isEditing = editingHistoryId && editingHistoryType === historyType;
+  const todayStr = new Date().toISOString().slice(0,10);
+  const data = isEditing
+    ? { Content: JSON.stringify(content) }
+    : { Type: historyType, HistoryDate: todayStr, Content: JSON.stringify(content) };
+
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الحفظ...';
+  const finishUi = ()=>{ editingHistoryId = null; editingHistoryType = null; btn.disabled = false; btn.textContent = orig; };
+
+  if(navigator.onLine === false){
+    if(isEditing){
+      const idx = currentHistory.findIndex(h => h.id === editingHistoryId);
+      if(idx !== -1) currentHistory[idx] = { ...currentHistory[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateHistory', patientId: currentPatientId, historyId: editingHistoryId, data });
+    } else {
+      const tempId = 'temph_' + Date.now();
+      currentHistory.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addHistory', patientId: currentPatientId, data, tempId });
+    }
+    setCachedHistory(currentPatientId, currentHistory);
+    renderAllHistory();
+    showToast('النت مقطوع - اتحفظ مؤقتًا وهيتزامن تلقائي', true);
+    finishUi();
+    return;
+  }
+  try{
+    if(isEditing){
+      await updateDoc(doc(db, "patients", currentPatientId, "history", editingHistoryId), data);
+      showToast('اتحدّث السجل ✓');
+    } else {
+      await addDoc(collection(db, "patients", currentPatientId, "history"), { ...data, CreatedAt: serverTimestamp() });
+      showToast('اتحفظت الروشتة ✓');
+    }
+    await loadHistory(currentPatientId);
+  }catch(err){
+    if(isEditing){
+      const idx = currentHistory.findIndex(h => h.id === editingHistoryId);
+      if(idx !== -1) currentHistory[idx] = { ...currentHistory[idx], ...data, _pending:true };
+      addToWriteQueue({ type:'updateHistory', patientId: currentPatientId, historyId: editingHistoryId, data });
+    } else {
+      const tempId = 'temph_' + Date.now();
+      currentHistory.unshift({ id: tempId, ...data, _pending:true });
+      addToWriteQueue({ type:'addHistory', patientId: currentPatientId, data, tempId });
+    }
+    setCachedHistory(currentPatientId, currentHistory);
+    renderAllHistory();
+    showToast('حصل خطأ في الاتصال - اتحفظ مؤقتًا', true);
+  }
+  finishUi();
+}
+
+$('saveRxBtn').onclick = ()=> saveHistoryEntry($('saveRxBtn'), 'rx', collectPrescription);
+$('savePhysioBtn').onclick = ()=> saveHistoryEntry($('savePhysioBtn'), 'physio', collectPhysio);
+$('saveReportBtn').onclick = ()=> saveHistoryEntry($('saveReportBtn'), 'report', collectReport);
+$('downloadRxBtn').onclick = ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
+  exportRxTemplateAsPdf(buildRxBodyHtml(collectPrescription()), 'روشتة', $('downloadRxBtn'));
+};
+$('downloadPhysioBtn').onclick = ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
+  exportRxTemplateAsPdf(buildPhysioBodyHtml(collectPhysio()), 'علاج-طبيعي', $('downloadPhysioBtn'));
+};
+$('downloadReportBtn').onclick = ()=>{
+  if(!currentPatientId || String(currentPatientId).startsWith('temp_')){ showToast('احفظ بيانات المريض الأول', true); return; }
+  exportRxTemplateAsPdf(buildReportBodyHtml(collectReport()), 'تقرير-طبي', $('downloadReportBtn'));
+};
+
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
 window.addEventListener('offline', ()=>{
   showOfflineBadge();
@@ -1325,6 +2192,7 @@ function initApp(){
   loadPatientsList();
   flushWriteQueue();
   populateOperationDropdowns();
+  tryFetchListsRemote();
 }
 
 /* ---------- تسجيل الـ Service Worker (يخلي الموقع نفسه يفتح من غير نت) ---------- */
