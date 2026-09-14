@@ -205,8 +205,7 @@
       <span id="calendarBadge" style="display:none; position:absolute; top:-6px; left:-6px; background:var(--teal-dark); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3;">0</span>
     </button>
     <button class="btn btn-ghost" id="viewMessagesBtn">💬 رسائل</button>
-    <button class="btn btn-ghost" id="importOldPatientsBtn">📥 استيراد</button>
-    <button class="btn btn-ghost" id="runBackupBtn">💾 نسخة احتياطية</button>
+    <button class="btn btn-ghost" id="settingsBtn">⚙️ الضبط</button>
     <button class="btn btn-ghost" id="logoutBtn" title="تسجيل خروج">🚪</button>
   </div>
   <button class="btn btn-primary" id="newPatientBtn">+ مريض جديد</button>
@@ -738,6 +737,19 @@
       <button class="btn btn-outline-red" id="deleteHistoryBtn">حذف</button>
       <button class="btn btn-primary" id="downloadHistoryPdfBtn">تحميل PDF</button>
     </div>
+  </div>
+</div>
+
+<div id="settingsModal" style="display:none; position:fixed; inset:0; background:rgba(31,74,64,.45); z-index:200; align-items:center; justify-content:center; padding:20px;">
+  <div class="card" style="max-width:440px; width:100%; position:relative;">
+    <button id="closeSettingsBtn" class="btn btn-ghost" style="position:absolute; top:14px; left:14px; padding:6px 12px;">✕</button>
+    <h2 style="margin:0 0 18px;">⚙️ الضبط</h2>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="btn btn-primary" id="runBackupBtn" style="text-align:right;">💾 عمل نسخة احتياطية دلوقتي</button>
+      <button class="btn btn-outline-red" id="restoreBackupBtn" style="text-align:right;">♻️ استعادة آخر نسخة احتياطية</button>
+      <button class="btn btn-ghost" id="importOldPatientsBtn" style="text-align:right;">📥 استيراد الأسماء من النظام القديم</button>
+    </div>
+    <div class="hint" style="margin-top:16px;">الاستعادة بتكتب فوق أي بيانات اتضافت بعد وقت آخر نسخة احتياطية - استخدمها بحذر.</div>
   </div>
 </div>
 
@@ -3514,6 +3526,32 @@ $('runBackupBtn').onclick = async ()=>{
     showToast('حصل خطأ أثناء عمل النسخة الاحتياطية', true);
   }
   btn.disabled = false; btn.textContent = orig;
+};
+
+$('settingsBtn').onclick = ()=>{ $('settingsModal').style.display = 'flex'; };
+$('closeSettingsBtn').onclick = ()=>{ $('settingsModal').style.display = 'none'; };
+
+$('restoreBackupBtn').onclick = async ()=>{
+  if(navigator.onLine === false){ showToast('الاستعادة محتاجة نت', true); return; }
+  if(!confirm('تحذير: الاستعادة هتكتب فوق أي بيانات اتضافت أو اتعدلت بعد وقت آخر نسخة احتياطية. متأكد إنك عايز تكمل؟')) return;
+  if(!confirm('تأكيد أخير: هترجع كل البيانات لحالة آخر نسخة احتياطية محفوظة. مفيش رجوع بعد كده. تكمل؟')) return;
+  const btn = $('restoreBackupBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'جاري الاستعادة...';
+  try{
+    const token = await ensureAppsScriptLogin();
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=restoreLatestBackup&token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if(data.error){ showToast(data.error, true); }
+    else{
+      showToast(`تمت الاستعادة ✓ - مرضى: ${data.patients} | زيارات: ${data.visits} | عمليات: ${data.operations} | هستوري: ${data.history} | فواتير: ${data.invoices} | مواعيد: ${data.appointments}`);
+      localStorage.removeItem('cachedPatientsList');
+      await loadPatientsList();
+    }
+  }catch(err){
+    showToast('حصل خطأ أثناء الاستعادة', true);
+  }
+  btn.disabled = false; btn.textContent = orig;
+  $('settingsModal').style.display = 'none';
 };
 
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
