@@ -2291,12 +2291,18 @@ async function exportRxTemplateAsPdf(bodyHtml, filenamePrefix, btn, dateOverride
   const useLetterhead = $('useLetterheadToggle').checked;
   let letterheadApplied = false;
 
+  // نحط النص والاسم والتاريخ الأول، قبل ما نحسب الارتفاع - عشان الحساب ياخد طول المحتوى الحقيقي بعين الاعتبار
+  tpl.querySelector('.rx-name').textContent = name;
+  tpl.querySelector('.rx-date').textContent = todayStr;
+  tpl.querySelector('.rx-body').innerHTML = bodyHtml;
+
   if(useLetterhead){
     await ensureLetterheadLoaded();
     if(letterheadImageData && letterheadRatio){
       letterheadImg.src = letterheadImageData;
       letterheadImg.style.display = 'block';
-      tpl.style.height = (420 / letterheadRatio) + 'px';
+      tpl.style.height = 'auto';
+      tpl.style.minHeight = (420 / letterheadRatio) + 'px';
       tpl.style.padding = '0';
       tpl.querySelector('.rx-header-spacer').style.height = '100px';
       tpl.querySelector('.rx-header-line').style.borderTop = 'none';
@@ -2311,6 +2317,7 @@ async function exportRxTemplateAsPdf(bodyHtml, filenamePrefix, btn, dateOverride
   if(!letterheadApplied){
     letterheadImg.style.display = 'none';
     tpl.style.height = 'auto';
+    tpl.style.minHeight = '0';
     tpl.style.padding = '36px 32px';
     tpl.querySelector('.rx-header-spacer').style.height = '70px';
     tpl.querySelector('.rx-header-line').style.borderTop = '2.5px solid #1F4A40';
@@ -2319,9 +2326,10 @@ async function exportRxTemplateAsPdf(bodyHtml, filenamePrefix, btn, dateOverride
     tpl.querySelector('.rx-body').style.padding = '0';
   }
 
-  tpl.querySelector('.rx-name').textContent = name;
-  tpl.querySelector('.rx-date').textContent = todayStr;
-  tpl.querySelector('.rx-body').innerHTML = bodyHtml;
+  // الصورة الخلفية (الشعار) بتغطي بالظبط طول الورقة الفعلي دلوقتي (اللي ممكن يبقى أطول من الشعار الأصلي لو النص طويل)
+  if(letterheadApplied){
+    letterheadImg.style.height = tpl.scrollHeight + 'px';
+  }
 
   const qrImg = tpl.querySelector('.rx-qrcode');
   if(currentPatientId && !String(currentPatientId).startsWith('temp_')){
