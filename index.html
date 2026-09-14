@@ -155,6 +155,26 @@
   .cal-daycell.selected .cal-dot{background:#fff;}
   .appt-item{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;position:relative; background:#fff;}
   .appt-date-header{font-family:'Cairo';font-weight:800;color:var(--teal-dark);font-size:14px;margin:14px 0 8px;}
+
+  .fab-btn{position:fixed; bottom:20px; width:52px; height:52px; border-radius:50%; background:var(--teal); color:#fff; border:none; font-size:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.25); z-index:150;}
+  .fab-badge{position:absolute; top:-4px; left:-4px; background:var(--red); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 6px; min-width:18px; text-align:center; line-height:1.3; font-family:'Tajawal';}
+  #todoFabBtn{left:20px;}
+  #stickyFabBtn{left:82px; background:#E8B923;}
+
+  .todo-panel{display:none; position:fixed; bottom:82px; left:20px; width:300px; max-height:70vh; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.22); z-index:151; padding:16px;}
+  .todo-item{display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .todo-item input[type=checkbox]{width:17px; height:17px; flex-shrink:0;}
+  .todo-item .todo-text{flex:1;}
+  .todo-item .todo-del{cursor:pointer; color:var(--muted); font-size:13px; padding:2px 6px;}
+  .todo-done-text{text-decoration:line-through; color:var(--muted);}
+
+  .sticky-note{display:none; position:fixed; width:260px; background:#FFF6B0; border:1px solid #E8D470; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.28); z-index:9000; overflow:hidden;}
+  .sticky-header{background:#F5E27A; padding:8px 10px; display:flex; align-items:center; gap:6px; cursor:move; user-select:none;}
+  .sticky-tabs{display:flex; gap:4px; flex:1; overflow-x:auto;}
+  .sticky-tab{background:rgba(255,255,255,.5); border:1px solid #ddc65a; border-radius:6px; padding:3px 9px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:'Tajawal';}
+  .sticky-tab.active{background:#fff;}
+  .sticky-add-tab, .sticky-close{background:none; border:none; cursor:pointer; font-size:15px; padding:2px 6px; font-weight:800;}
+  .sticky-note textarea{width:100%; height:180px; border:none; background:transparent; padding:12px; font-family:'Tajawal'; font-size:13.5px; resize:vertical; outline:none; color:#4a3f00;}
 </style>
 </head>
 <body>
@@ -766,6 +786,34 @@
       <div style="width:150px; border-top:1px solid #999; padding-top:6px;">توقيع الطبيب</div>
     </div>
   </div>
+</div>
+
+<button class="fab-btn" id="todoFabBtn" style="position:relative;">
+  ✅
+  <span class="fab-badge" id="todoBadge" style="display:none;">0</span>
+</button>
+<div class="todo-panel" id="todoPanel">
+  <div class="visits-head" style="margin-bottom:10px;">
+    <h2 style="margin:0; font-size:15px;">قائمة المهام</h2>
+    <button class="btn btn-ghost" id="closeTodoPanelBtn" style="padding:4px 10px;">✕</button>
+  </div>
+  <div style="display:flex; gap:8px; margin-bottom:12px;">
+    <input type="text" id="todoInput" placeholder="مهمة جديدة..." style="flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:'Tajawal'; font-size:13.5px;">
+    <button class="btn btn-primary" id="addTodoBtn" style="padding:8px 14px;">+</button>
+  </div>
+  <div id="todoPendingList"></div>
+  <button class="btn btn-ghost" id="toggleTodoDoneBtn" style="width:100%; margin-top:10px; font-size:12.5px;">المهام المكتملة (تم) ▾</button>
+  <div id="todoDoneList" style="display:none; margin-top:8px;"></div>
+</div>
+
+<button class="fab-btn" id="stickyFabBtn">📝</button>
+<div class="sticky-note" id="stickyNoteWindow">
+  <div class="sticky-header" id="stickyHeader">
+    <div class="sticky-tabs" id="stickyTabs"></div>
+    <button class="sticky-add-tab" id="addStickyTabBtn" title="ورقة جديدة">+</button>
+    <button class="sticky-close" id="closeStickyBtn" title="إغلاق">✕</button>
+  </div>
+  <textarea id="stickyTextarea" placeholder="اكتب ملاحظتك هنا..."></textarea>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -3601,6 +3649,184 @@ $('restoreBackupBtn').onclick = async ()=>{
   btn.disabled = false; btn.textContent = orig;
   $('settingsModal').style.display = 'none';
 };
+
+/* ---------- قائمة المهام (To-Do) ---------- */
+function getTodos(){
+  try{ return JSON.parse(localStorage.getItem('clinicTodos') || '[]'); }catch(e){ return []; }
+}
+function setTodos(list){ localStorage.setItem('clinicTodos', JSON.stringify(list)); }
+
+function renderTodos(){
+  const todos = getTodos();
+  const pending = todos.filter(t => !t.done);
+  const done = todos.filter(t => t.done);
+
+  const badge = $('todoBadge');
+  if(pending.length){ badge.textContent = pending.length; badge.style.display = 'flex'; }
+  else{ badge.style.display = 'none'; }
+
+  const pendingBox = $('todoPendingList');
+  pendingBox.innerHTML = pending.length ? pending.map(t => `
+    <div class="todo-item" data-id="${t.id}">
+      <input type="checkbox" class="todo-check">
+      <span class="todo-text">${escapeHtml(t.text)}</span>
+      <span class="todo-del">✕</span>
+    </div>`).join('') : '<div class="no-visits" style="padding:10px 0;">مفيش مهام</div>';
+
+  const doneBox = $('todoDoneList');
+  doneBox.innerHTML = done.length ? done.map(t => `
+    <div class="todo-item" data-id="${t.id}">
+      <input type="checkbox" class="todo-check" checked>
+      <span class="todo-text todo-done-text">${escapeHtml(t.text)}</span>
+      <span class="todo-del">✕</span>
+    </div>`).join('') : '<div class="no-visits" style="padding:10px 0;">لسه مفيش مهام خلصت</div>';
+
+  document.querySelectorAll('#todoPendingList .todo-check, #todoDoneList .todo-check').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const id = cb.closest('.todo-item').dataset.id;
+      const list = getTodos();
+      const item = list.find(t => String(t.id) === id);
+      if(item){ item.done = cb.checked; setTodos(list); renderTodos(); }
+    });
+  });
+  document.querySelectorAll('#todoPendingList .todo-del, #todoDoneList .todo-del').forEach(del=>{
+    del.addEventListener('click', ()=>{
+      const id = del.closest('.todo-item').dataset.id;
+      setTodos(getTodos().filter(t => String(t.id) !== id));
+      renderTodos();
+    });
+  });
+}
+
+$('todoFabBtn').onclick = ()=>{
+  $('todoPanel').style.display = $('todoPanel').style.display === 'block' ? 'none' : 'block';
+};
+$('closeTodoPanelBtn').onclick = ()=>{ $('todoPanel').style.display = 'none'; };
+$('addTodoBtn').onclick = ()=>{
+  const text = $('todoInput').value.trim();
+  if(!text) return;
+  const list = getTodos();
+  list.push({ id: Date.now(), text, done:false });
+  setTodos(list);
+  $('todoInput').value = '';
+  renderTodos();
+};
+$('todoInput').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') $('addTodoBtn').click(); });
+$('toggleTodoDoneBtn').onclick = ()=>{
+  const box = $('todoDoneList');
+  const open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : 'block';
+  $('toggleTodoDoneBtn').textContent = open ? 'المهام المكتملة (تم) ▾' : 'المهام المكتملة (تم) ▴';
+};
+renderTodos();
+
+/* ---------- الملاحظات اللاصقة (Sticky Notes) ---------- */
+function getStickyNotes(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('clinicStickyNotes') || 'null');
+    return (saved && saved.notes && saved.notes.length) ? saved : { notes: [{id:1, text:''}], activeId: 1 };
+  }catch(e){ return { notes: [{id:1, text:''}], activeId: 1 }; }
+}
+let stickyState = getStickyNotes();
+function saveStickyNotes(){ localStorage.setItem('clinicStickyNotes', JSON.stringify(stickyState)); }
+
+function renderStickyTabs(){
+  const box = $('stickyTabs');
+  box.innerHTML = stickyState.notes.map((n,i) => `<div class="sticky-tab ${n.id === stickyState.activeId ? 'active' : ''}" data-id="${n.id}">${i+1}</div>`).join('');
+  box.querySelectorAll('.sticky-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      const currentNote = stickyState.notes.find(n => n.id === stickyState.activeId);
+      if(currentNote) currentNote.text = $('stickyTextarea').value;
+      stickyState.activeId = Number(tab.dataset.id);
+      saveStickyNotes();
+      renderStickyTabs();
+      $('stickyTextarea').value = stickyState.notes.find(n => n.id === stickyState.activeId).text;
+    });
+  });
+}
+$('addStickyTabBtn').onclick = ()=>{
+  const currentNote = stickyState.notes.find(n => n.id === stickyState.activeId);
+  if(currentNote) currentNote.text = $('stickyTextarea').value;
+  const newId = Date.now();
+  stickyState.notes.push({ id: newId, text: '' });
+  stickyState.activeId = newId;
+  saveStickyNotes();
+  renderStickyTabs();
+  $('stickyTextarea').value = '';
+  $('stickyTextarea').focus();
+};
+$('stickyTextarea').addEventListener('input', ()=>{
+  const currentNote = stickyState.notes.find(n => n.id === stickyState.activeId);
+  if(currentNote){ currentNote.text = $('stickyTextarea').value; saveStickyNotes(); }
+});
+
+$('stickyFabBtn').onclick = ()=>{
+  const win = $('stickyNoteWindow');
+  const isOpen = win.style.display === 'block';
+  if(isOpen){ win.style.display = 'none'; return; }
+  const savedPos = JSON.parse(localStorage.getItem('clinicStickyPos') || 'null');
+  if(savedPos){ win.style.left = savedPos.left; win.style.top = savedPos.top; win.style.bottom = 'auto'; }
+  else{ win.style.left = '82px'; win.style.bottom = '82px'; win.style.top = 'auto'; }
+  win.style.display = 'block';
+  renderStickyTabs();
+  $('stickyTextarea').value = stickyState.notes.find(n => n.id === stickyState.activeId).text;
+};
+$('closeStickyBtn').onclick = ()=>{
+  const currentNote = stickyState.notes.find(n => n.id === stickyState.activeId);
+  if(currentNote) currentNote.text = $('stickyTextarea').value;
+  saveStickyNotes();
+  $('stickyNoteWindow').style.display = 'none';
+};
+
+/* سحب النوتة اللاصقة لأي مكان في الصفحة */
+(function(){
+  let dragging = false, offsetX = 0, offsetY = 0;
+  const header = $('stickyHeader');
+  const win = $('stickyNoteWindow');
+  header.addEventListener('mousedown', (e)=>{
+    if(e.target.closest('.sticky-tab, .sticky-add-tab, .sticky-close')) return;
+    dragging = true;
+    const rect = win.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    win.style.top = rect.top + 'px';
+    win.style.left = rect.left + 'px';
+    win.style.bottom = 'auto';
+  });
+  document.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    win.style.left = (e.clientX - offsetX) + 'px';
+    win.style.top = (e.clientY - offsetY) + 'px';
+  });
+  document.addEventListener('mouseup', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    localStorage.setItem('clinicStickyPos', JSON.stringify({ left: win.style.left, top: win.style.top }));
+  });
+  // دعم اللمس على الموبايل/التابلت
+  header.addEventListener('touchstart', (e)=>{
+    if(e.target.closest('.sticky-tab, .sticky-add-tab, .sticky-close')) return;
+    dragging = true;
+    const rect = win.getBoundingClientRect();
+    const t = e.touches[0];
+    offsetX = t.clientX - rect.left;
+    offsetY = t.clientY - rect.top;
+    win.style.top = rect.top + 'px';
+    win.style.left = rect.left + 'px';
+    win.style.bottom = 'auto';
+  }, {passive:true});
+  document.addEventListener('touchmove', (e)=>{
+    if(!dragging) return;
+    const t = e.touches[0];
+    win.style.left = (t.clientX - offsetX) + 'px';
+    win.style.top = (t.clientY - offsetY) + 'px';
+  }, {passive:true});
+  document.addEventListener('touchend', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    localStorage.setItem('clinicStickyPos', JSON.stringify({ left: win.style.left, top: win.style.top }));
+  });
+})();
 
 /* ---------- مراقبة الاتصال بالإنترنت ---------- */
 window.addEventListener('offline', ()=>{
